@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LedgerVault</string>
+    <string name="title_activity_main">LedgerVault</string>
+    <string name="package_name">com.ledgervault.app</string>
+    <string name="custom_url_scheme">com.ledgervault.app</string>
+</resources>
