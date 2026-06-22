@@ -21,7 +21,7 @@ const CATEGORIES = [
 
 export default function WithdrawCash() {
   const navigate = useNavigate();
-  const { activeMember, wallet, members } = useAppStore();
+  const { activeMember, wallet, members, familyId } = useAppStore();
   
   const [selectedMemberId, setSelectedMemberId] = useState(activeMember?.id || (members.length > 0 ? members[0].id : ''));
   const [amount, setAmount] = useState('');
@@ -36,7 +36,7 @@ export default function WithdrawCash() {
     if (!purpose) return;
     
     const member = members.find(m => m.id === selectedMemberId);
-    if (!member) return;
+    if (!member || !familyId) return;
 
     if (wallet && Number(amount) > wallet.currentBalance) {
       if (!window.confirm("Amount exceeds current balance! Are you sure you want to withdraw?")) {
@@ -46,7 +46,7 @@ export default function WithdrawCash() {
 
     setLoading(true);
 
-    const success = await addTransaction({
+    const success = await addTransaction(familyId, {
       memberId: member.id,
       memberName: member.name,
       transactionType: 'Withdraw',

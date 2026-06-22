@@ -4,7 +4,7 @@ import { Button } from './Button';
 import { ShieldAlert } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { verifyAdminPassword } from '../utils';
-import { getSettingsRef } from '../services/db';
+import { getFamilySettingsRef } from '../services/db';
 import { getDoc } from 'firebase/firestore';
 
 interface AdminAuthModalProps {
@@ -17,7 +17,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ isOpen, onClose,
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { setAdminAuthenticated } = useAppStore();
+  const { setAdminAuthenticated, familyId } = useAppStore();
 
   if (!isOpen) return null;
 
@@ -27,17 +27,19 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ isOpen, onClose,
     setLoading(true);
 
     try {
-      // In a real app, fetch the hash from Firestore settings
-      const settingsSnap = await getDoc(getSettingsRef());
       let storedHash = '';
+      if (familyId) {
+        const settingsSnap = await getDoc(getFamilySettingsRef(familyId));
+        if (settingsSnap.exists() && settingsSnap.data().adminPasswordHash) {
+          storedHash = settingsSnap.data().adminPasswordHash;
+        }
+      }
       
-      if (settingsSnap.exists()) {
-        storedHash = settingsSnap.data().adminPasswordHash;
-      } else {
+      if (!storedHash) {
         // Fallback or initialization handling
         // For this task, "1225" is the default. Its SHA-256 hash is:
-        // 494519fa7eb4c6c03dc79bb95183f0653664d4bf52528df529c2112e7534dc47
-        storedHash = '494519fa7eb4c6c03dc79bb95183f0653664d4bf52528df529c2112e7534dc47';
+        // 6ecf763ff6e7cef7b47e6611e1bf76fe2608a2e32a97b2d88b083ae1d8d02c82
+        storedHash = '6ecf763ff6e7cef7b47e6611e1bf76fe2608a2e32a97b2d88b083ae1d8d02c82';
       }
 
       const isValid = await verifyAdminPassword(password, storedHash);

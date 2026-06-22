@@ -4,25 +4,16 @@ import { useAppStore } from '../store/useAppStore';
 import { formatCurrency } from '../utils';
 import { Card } from '../components/Card';
 import { PlusCircle, MinusCircle, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import { subscribeToWallet, subscribeToTransactions } from '../services/db';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { wallet, setWallet, transactions, setTransactions } = useAppStore();
+  const { wallet, transactions, activeMember } = useAppStore();
 
   useEffect(() => {
-    const unsubWallet = subscribeToWallet((data) => {
-      if (data) setWallet(data);
-    });
-    const unsubTx = subscribeToTransactions((data) => {
-      setTransactions(data);
-    });
-
-    return () => {
-      unsubWallet();
-      unsubTx();
-    };
-  }, [setWallet, setTransactions]);
+    if (!activeMember) {
+      navigate('/select-member');
+    }
+  }, [activeMember, navigate]);
 
   const balance = wallet?.currentBalance || 0;
   const isLowBalance = wallet?.minimumThreshold && balance < wallet.minimumThreshold;

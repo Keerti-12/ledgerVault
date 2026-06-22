@@ -9,7 +9,7 @@ import { ArrowLeft, Wallet } from 'lucide-react';
 
 export default function AddCash() {
   const navigate = useNavigate();
-  const { activeMember, members } = useAppStore();
+  const { activeMember, members, familyId } = useAppStore();
   
   const [selectedMemberId, setSelectedMemberId] = useState(activeMember?.id || (members.length > 0 ? members[0].id : ''));
   const [amount, setAmount] = useState('');
@@ -22,11 +22,11 @@ export default function AddCash() {
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return;
     if (!reason) return;
     const member = members.find(m => m.id === selectedMemberId);
-    if (!member) return;
+    if (!member || !familyId) return;
 
     setLoading(true);
 
-    const success = await addTransaction({
+    const success = await addTransaction(familyId, {
       memberId: member.id,
       memberName: member.name,
       transactionType: 'Add',

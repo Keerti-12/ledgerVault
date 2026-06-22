@@ -20,12 +20,15 @@ export const formatTime = (timestamp: number): string => {
 // The requirement stated initial password is "1225". We will hash this securely in production, 
 // but for the demo we'll use a basic digest or simple comparison if a hash isn't available from settings.
 export const verifyAdminPassword = async (password: string, storedHash: string): Promise<boolean> => {
-  // Simulation for simplicity in the demo without Node crypto module
-  // A simple hash function to demonstrate the concept
-  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password));
+  const cleanPass = password.trim();
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(cleanPass));
   const hashArray = Array.from(new Uint8Array(hash));
   const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  return hashHex === storedHash;
+  
+  console.log("Computed Hash:", hashHex, "Stored:", storedHash);
+  
+  // Allow matching the hash, or fallback to matching the exact stored string (in case it was saved in plaintext manually)
+  return hashHex === storedHash || cleanPass === storedHash;
 };
 
 // Initial setup helper - the SHA-256 of "1225" is "a0d1b3...".

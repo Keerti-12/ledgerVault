@@ -1,8 +1,15 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { Member, Transaction, Wallet } from '../types';
 
 interface AppState {
-  // Active Session
+  // Multi-Tenant Session
+  familyId: string | null;
+  familyName: string | null;
+  setFamilySession: (id: string | null, name: string | null) => void;
+  logoutFamily: () => void;
+
+  // Active User Session
   activeMember: Member | null;
   setActiveMember: (member: Member | null) => void;
   
@@ -21,19 +28,36 @@ interface AppState {
   setMembers: (members: Member[]) => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
-  activeMember: null,
-  setActiveMember: (member) => set({ activeMember: member }),
-  
-  isAdminAuthenticated: false,
-  setAdminAuthenticated: (status) => set({ isAdminAuthenticated: status }),
-  
-  wallet: null,
-  setWallet: (wallet) => set({ wallet }),
-  
-  transactions: [],
-  setTransactions: (transactions) => set({ transactions }),
-  
-  members: [],
-  setMembers: (members) => set({ members }),
-}));
+export const useAppStore = create<AppState>()(
+  persist(
+    (set) => ({
+      familyId: null,
+      familyName: null,
+      setFamilySession: (id, name) => set({ familyId: id, familyName: name }),
+      logoutFamily: () => set({ familyId: null, familyName: null, activeMember: null, isAdminAuthenticated: false }),
+
+      activeMember: null,
+      setActiveMember: (member) => set({ activeMember: member }),
+      
+      isAdminAuthenticated: false,
+      setAdminAuthenticated: (status) => set({ isAdminAuthenticated: status }),
+      
+      wallet: null,
+      setWallet: (wallet) => set({ wallet }),
+      
+      transactions: [],
+      setTransactions: (transactions) => set({ transactions }),
+      
+      members: [],
+      setMembers: (members) => set({ members }),
+    }),
+    {
+      name: 'ledgervault-session',
+      partialize: (state) => ({
+        familyId: state.familyId,
+        familyName: state.familyName,
+        activeMember: state.activeMember
+      }),
+    }
+  )
+);

@@ -3,11 +3,13 @@ import { useAppStore } from '../store/useAppStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { AdminAuthModal } from '../components/AdminAuthModal';
-import { ShieldCheck, User, Settings as SettingsIcon } from 'lucide-react';
+import { ShieldCheck, User, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 
 export default function Settings() {
-  const { activeMember, isAdminAuthenticated, setAdminAuthenticated } = useAppStore();
+  const { activeMember, isAdminAuthenticated, setAdminAuthenticated, logoutFamily, familyName } = useAppStore();
+  const navigate = useNavigate();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authTarget, setAuthTarget] = useState<'reset' | 'members' | null>(null);
 
@@ -30,11 +32,10 @@ export default function Settings() {
   const executeAdminAction = (target: 'reset' | 'members') => {
     if (target === 'reset') {
       if (window.confirm('Are you sure you want to reset the home balance to zero? This action will be logged.')) {
-        // Implement reset logic here. Update wallet to 0 and add an audit log.
         alert('Not fully implemented in this demo, but the admin gate works!');
       }
     } else if (target === 'members') {
-      alert('Manage members feature accessible only to admins.');
+      navigate('/manage-members');
     }
   };
 
@@ -47,8 +48,8 @@ export default function Settings() {
           {activeMember?.avatar}
         </div>
         <div>
-          <h3 className="text-lg font-bold text-slate-800">{activeMember?.name}</h3>
-          <p className="text-sm text-slate-500 font-medium">Role: {activeMember?.role}</p>
+          <h3 className="text-lg font-bold text-slate-800">{activeMember?.name || 'No member selected'}</h3>
+          <p className="text-sm text-slate-500 font-medium">Family: {familyName}</p>
         </div>
       </Card>
 
@@ -99,6 +100,20 @@ export default function Settings() {
             </div>
           )}
         </Card>
+      </div>
+
+      <div className="pt-8 pb-4">
+        <Button 
+          onClick={() => {
+            if (window.confirm('Are you sure you want to sign out of this family vault?')) {
+              logoutFamily();
+              navigate('/login');
+            }
+          }}
+          className="w-full h-14 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 shadow-none border-0 text-lg font-bold flex justify-center items-center gap-2"
+        >
+          <LogOut size={20} /> Sign Out of {familyName} Vault
+        </Button>
       </div>
 
       <AdminAuthModal 

@@ -4,26 +4,75 @@ import {
   onSnapshot,
   query,
   orderBy,
-  runTransaction
+  runTransaction,
+  addDoc,
+  deleteDoc,
+  updateDoc,
+  getDocs,
+  setDoc,
+  where
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Transaction, Wallet, Member } from '../types';
 
-export const collections = {
-  members: collection(db, 'members'),
-  wallet: collection(db, 'wallet'),
-  transactions: collection(db, 'transactions'),
-  auditLogs: collection(db, 'auditLogs'),
-  settings: collection(db, 'settings')
+// Dynamic collection getters for Multi-Tenant Architecture
+export const getFamilyRef = (familyId: string) => doc(db, 'families', familyId);
+export const getMembersRef = (familyId: string) => collection(db, 'families', familyId, 'members');
+export const getTransactionsRef = (familyId: string) => collection(db, 'families', familyId, 'transactions');
+export const getWalletRef = (familyId: string) => doc(db, 'families', familyId, 'wallet', 'main');
+export const getFamilySettingsRef = (familyId: string) => doc(db, 'families', familyId, 'settings', 'main');
+
+// ==========================================
+// AUTHENTICATION
+// ==========================================
+
+export const registerFamily = async (adminName: string, pin: string) => {
+  try {
+    if (!/^\d{4}$/.test(pin)) return { success: false, error: 'PIN must be exactly 4 digits' };
+    
+    // Check if family name already exists
+    const familiesRef = collection(db, 'families');
+    const q = query(familiesRef, where('adminName', '==', adminName.trim()));
+    const snapshot = await getDocs(q);
+    
+    if (!snapshot.empty) return { success: false, error: 'Family name already taken. Please choose another.' };
+    
+    // Create new family
+    const newFamilyRef = doc(collection(db, 'families'));
+    await setDoc(newFamilyRef, {
+      adminName: adminName.trim(),
+      pin, // In a real production app, this should be securely hashed.
+      createdAt: Date.now()
+    });
+    
+    return { success: true, familyId: newFamilyRef.id };
+  } catch (e) {
+    console.error(e);
+    return { success: false, error: 'Registration failed. Check your connection.' };
+  }
 };
 
-// Helper to get main wallet
-export const getWalletRef = () => doc(db, 'wallet', 'main');
-export const getSettingsRef = () => doc(db, 'settings', 'main');
+export const loginFamily = async (adminName: string, pin: string) => {
+  try {
+    const familiesRef = collection(db, 'families');
+    const q = query(familiesRef, where('adminName', '==', adminName.trim()), where('pin', '==', pin));
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) return { success: false, error: 'Invalid Family Name or PIN' };
+    
+    return { success: true, familyId: snapshot.docs[0].id };
+  } catch (e) {
+    console.error(e);
+    return { success: false, error: 'Login failed. Check your connection.' };
+  }
+};
 
-// Listen to wallet changes
-export const subscribeToWallet = (callback: (wallet: Wallet | null) => void) => {
-  return onSnapshot(getWalletRef(), (docSnapshot) => {
+// ==========================================
+// SUBSCRIPTIONS
+// ==========================================
+
+export const subscribeToWallet = (familyId: string, callback: (wallet: Wallet | null) => void) => {
+  return onSnapshot(getWalletRef(familyId), (docSnapshot) => {
     if (docSnapshot.exists()) {
       callback(docSnapshot.data() as Wallet);
     } else {
@@ -32,39 +81,40 @@ export const subscribeToWallet = (callback: (wallet: Wallet | null) => void) => 
   });
 };
 
-// Listen to transactions
-export const subscribeToTransactions = (callback: (transactions: Transaction[]) => void) => {
-  const q = query(collections.transactions, orderBy('timestamp', 'desc'));
+export const subscribeToTransactions = (familyId: string, callback: (transactions: Transaction[]) => void) => {
+  const q = query(getTransactionsRef(familyId), orderBy('timestamp', 'desc'));
   return onSnapshot(q, (snapshot) => {
     const txs: Transaction[] = [];
     snapshot.forEach((doc) => {
-      txs.push(doc.data() as Transaction);
+      txs.push({ id: doc.id, ...doc.data() } as Transaction);
     });
     callback(txs);
   });
 };
 
-// Listen to members
-export const subscribeToMembers = (callback: (members: Member[]) => void) => {
-  return onSnapshot(collections.members, (snapshot) => {
+export const subscribeToMembers = (familyId: string, callback: (members: Member[]) => void) => {
+  return onSnapshot(getMembersRef(familyId), (snapshot) => {
     const members: Member[] = [];
     snapshot.forEach((doc) => {
-      members.push(doc.data() as Member);
+      members.push({ id: doc.id, ...doc.data() } as Member);
     });
     callback(members);
   });
 };
 
-export const addTransaction = async (txData: Omit<Transaction, 'id' | 'balanceAfterTransaction' | 'timestamp' | 'edited' | 'deleted'>) => {
+// ==========================================
+// OPERATIONS
+// ==========================================
+
+export const addTransaction = async (familyId: string, txData: Omit<Transaction, 'id' | 'balanceAfterTransaction' | 'timestamp' | 'edited' | 'deleted'>) => {
   try {
     await runTransaction(db, async (transaction) => {
-      const walletRef = getWalletRef();
+      const walletRef = getWalletRef(familyId);
       const walletDoc = await transaction.get(walletRef);
       
       let currentBalance = 0;
       
       if (!walletDoc.exists()) {
-        // Initialize the wallet if it doesn't exist yet
         transaction.set(walletRef, {
           currentBalance: 0,
           minimumThreshold: 1000,
@@ -81,7 +131,7 @@ export const addTransaction = async (txData: Omit<Transaction, 'id' | 'balanceAf
         newBalance -= txData.amount;
       }
       
-      const newTxRef = doc(collections.transactions);
+      const newTxRef = doc(getTransactionsRef(familyId));
       const txId = newTxRef.id;
       
       const now = Date.now();
@@ -105,6 +155,127 @@ export const addTransaction = async (txData: Omit<Transaction, 'id' | 'balanceAf
     return true;
   } catch (error) {
     console.error("Transaction failed: ", error);
+    return false;
+  }
+};
+
+export const addMember = async (familyId: string, memberData: Omit<Member, 'id'>) => {
+  try {
+    const docRef = await addDoc(getMembersRef(familyId), memberData);
+    await updateDoc(docRef, { id: docRef.id });
+    return true;
+  } catch (e) {
+    console.error("Error adding member: ", e);
+    return false;
+  }
+};
+
+export const deleteMember = async (familyId: string, memberId: string) => {
+  try {
+    await deleteDoc(doc(db, 'families', familyId, 'members', memberId));
+    return true;
+  } catch (e) {
+    console.error("Error deleting member: ", e);
+    return false;
+  }
+};
+
+export const editMember = async (familyId: string, memberId: string, memberData: Partial<Omit<Member, 'id'>>) => {
+  try {
+    await updateDoc(doc(db, 'families', familyId, 'members', memberId), memberData);
+    return true;
+  } catch (e) {
+    console.error("Error editing member: ", e);
+    return false;
+  }
+};
+
+export const deleteTransaction = async (familyId: string, transactionId: string) => {
+  try {
+    await runTransaction(db, async (transaction) => {
+      const txRef = doc(db, 'families', familyId, 'transactions', transactionId);
+      const txDoc = await transaction.get(txRef);
+      if (!txDoc.exists()) throw "Transaction does not exist!";
+      
+      const txData = txDoc.data() as Transaction;
+      if (txData.deleted) throw "Already deleted!";
+
+      const walletRef = getWalletRef(familyId);
+      const walletDoc = await transaction.get(walletRef);
+      
+      if (!walletDoc.exists()) throw "Wallet missing!";
+      
+      let currentBalance = walletDoc.data().currentBalance;
+      
+      if (txData.transactionType === 'Add') {
+        currentBalance -= txData.amount;
+      } else {
+        currentBalance += txData.amount;
+      }
+      
+      transaction.update(walletRef, {
+        currentBalance: currentBalance,
+        lastUpdated: Date.now()
+      });
+      
+      transaction.update(txRef, {
+        deleted: true,
+        edited: true,
+        timestamp: Date.now()
+      });
+    });
+    return true;
+  } catch (error) {
+    console.error("Delete transaction failed: ", error);
+    return false;
+  }
+};
+
+export const editTransaction = async (familyId: string, transactionId: string, updatedData: Partial<Transaction>) => {
+  try {
+    await runTransaction(db, async (transaction) => {
+      const txRef = doc(db, 'families', familyId, 'transactions', transactionId);
+      const txDoc = await transaction.get(txRef);
+      if (!txDoc.exists()) throw "Transaction does not exist!";
+      
+      const oldTxData = txDoc.data() as Transaction;
+      if (oldTxData.deleted) throw "Cannot edit deleted transaction!";
+
+      const walletRef = getWalletRef(familyId);
+      const walletDoc = await transaction.get(walletRef);
+      if (!walletDoc.exists()) throw "Wallet missing!";
+      
+      let currentBalance = walletDoc.data().currentBalance;
+      
+      if (oldTxData.transactionType === 'Add') {
+        currentBalance -= oldTxData.amount;
+      } else {
+        currentBalance += oldTxData.amount;
+      }
+      
+      const newType = updatedData.transactionType || oldTxData.transactionType;
+      const newAmount = updatedData.amount !== undefined ? updatedData.amount : oldTxData.amount;
+      
+      if (newType === 'Add') {
+        currentBalance += newAmount;
+      } else {
+        currentBalance -= newAmount;
+      }
+      
+      transaction.update(walletRef, {
+        currentBalance: currentBalance,
+        lastUpdated: Date.now()
+      });
+      
+      transaction.update(txRef, {
+        ...updatedData,
+        edited: true,
+        balanceAfterTransaction: currentBalance
+      });
+    });
+    return true;
+  } catch (error) {
+    console.error("Edit transaction failed: ", error);
     return false;
   }
 };

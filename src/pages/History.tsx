@@ -3,12 +3,42 @@ import { useAppStore } from '../store/useAppStore';
 import { Card } from '../components/Card';
 
 import { formatCurrency, formatDate, formatTime } from '../utils';
-import { Search, Filter, ArrowDownRight, ArrowUpRight } from 'lucide-react';
+import { Search, Filter, ArrowDownRight, ArrowUpRight, Trash2, Edit3, X, Check } from 'lucide-react';
+import { deleteTransaction, editTransaction } from '../services/db';
 
 export default function History() {
-  const { transactions } = useAppStore();
+  const { transactions, isAdminAuthenticated, familyId } = useAppStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'All' | 'Add' | 'Withdraw'>('All');
+  
+  const [editingTxId, setEditingTxId] = useState<string | null>(null);
+  const [editAmount, setEditAmount] = useState<string>('');
+  const [editPurpose, setEditPurpose] = useState<string>('');
+
+  const handleDelete = async (id: string) => {
+    if (!familyId) return;
+    if (window.confirm('Are you sure you want to delete this transaction? The wallet balance will be automatically adjusted.')) {
+      await deleteTransaction(familyId, id);
+    }
+  };
+
+  const handleEditClick = (tx: any) => {
+    setEditingTxId(tx.id);
+    setEditAmount(tx.amount.toString());
+    setEditPurpose(tx.purpose);
+  };
+
+  const handleEditSubmit = async (txId: string) => {
+    if (!familyId) return;
+    const amountNum = parseInt(editAmount);
+    if (!amountNum || amountNum <= 0 || !editPurpose.trim()) return;
+    
+    await editTransaction(familyId, txId, {
+      amount: amountNum,
+      purpose: editPurpose.trim()
+    });
+    setEditingTxId(null);
+  };
 
   const filteredTransactions = useMemo(() => {
     return transactions
@@ -56,28 +86,75 @@ export default function History() {
       <div className="space-y-4">
         {filteredTransactions.map((tx) => (
           <Card key={tx.id} className="p-4">
-            <div className="flex justify-between items-start mb-3">
-              <div className="flex items-center space-x-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tx.transactionType === 'Add' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
-                  {tx.transactionType === 'Add' ? <ArrowDownRight size={20} /> : <ArrowUpRight size={20} />}
+            {editingTxId === tx.id ? (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-bold text-slate-700 text-sm flex items-center gap-1"><Edit3 size={16} /> Edit Transaction</h3>
+                  <button onClick={() => setEditingTxId(null)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
                 </div>
-                <div>
-                  <h3 className="font-bold text-slate-800 text-lg leading-tight">{tx.purpose}</h3>
-                  <p className="text-xs text-slate-500">{tx.category} • By {tx.memberName}</p>
+                <input 
+                  type="text" 
+                  value={editPurpose} 
+                  onChange={(e) => setEditPurpose(e.target.value)} 
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-emerald-400"
+                  placeholder="Purpose"
+                />
+                <input 
+                  type="number" 
+                  value={editAmount} 
+                  onChange={(e) => setEditAmount(e.target.value)} 
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-emerald-400"
+                  placeholder="Amount"
+                />
+                <button 
+                  onClick={() => handleEditSubmit(tx.id!)}
+                  disabled={!editAmount || !editPurpose.trim()}
+                  className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-semibold flex justify-center items-center gap-2 transition-colors disabled:opacity-50"
+                >
+                  <Check size={18} /> Save Changes
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tx.transactionType === 'Add' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                      {tx.transactionType === 'Add' ? <ArrowDownRight size={20} /> : <ArrowUpRight size={20} />}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-lg leading-tight">{tx.purpose}</h3>
+                      <p className="text-xs text-slate-500">{tx.category} • By {tx.memberName}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-bold text-lg leading-tight ${tx.transactionType === 'Add' ? 'text-emerald-600' : 'text-slate-800'}`}>
+                      {tx.transactionType === 'Add' ? '+' : '-'}{formatCurrency(tx.amount)}
+                    </p>
+                    <p className="text-xs text-slate-500 flex justify-end gap-1 items-center">
+                      {tx.edited && <span className="text-[10px] bg-slate-100 px-1 rounded text-slate-400">Edited</span>}
+                      {formatTime(tx.timestamp)}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="text-right">
-                <p className={`font-bold text-lg leading-tight ${tx.transactionType === 'Add' ? 'text-emerald-600' : 'text-slate-800'}`}>
-                  {tx.transactionType === 'Add' ? '+' : '-'}{formatCurrency(tx.amount)}
-                </p>
-                <p className="text-xs text-slate-500">{formatTime(tx.timestamp)}</p>
-              </div>
-            </div>
-            
-            <div className="pt-3 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
-              <span>{formatDate(tx.timestamp)}</span>
-              <span>Bal: {formatCurrency(tx.balanceAfterTransaction)}</span>
-            </div>
+                
+                <div className="pt-3 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
+                  <span>{formatDate(tx.timestamp)}</span>
+                  <div className="flex items-center gap-3">
+                    {isAdminAuthenticated && (
+                      <div className="flex items-center gap-1 border-r border-slate-200 pr-3">
+                        <button onClick={() => handleEditClick(tx)} className="p-1 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded transition-colors">
+                          <Edit3 size={14} />
+                        </button>
+                        <button onClick={() => handleDelete(tx.id!)} className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded transition-colors">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
+                    <span>Bal: {formatCurrency(tx.balanceAfterTransaction)}</span>
+                  </div>
+                </div>
+              </>
+            )}
           </Card>
         ))}
 
