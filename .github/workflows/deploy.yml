@@ -40,6 +40,9 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
+      - name: Clear corrupted Gradle Jar cache
+        run: rm -rf ~/.gradle/caches/jars-9/ || true
+
       - name: Build APK
         working-directory: android
         run: ./gradlew assembleDebug
