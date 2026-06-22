@@ -18,6 +18,20 @@ buildscript {
 apply from: "variables.gradle"
 
 allprojects {
+    buildscript {
+        repositories {
+            google()
+            mavenCentral()
+        }
+        configurations.all {
+            resolutionStrategy.eachDependency { DependencyResolveDetails details ->
+                def requested = details.requested
+                if (requested.group == 'org.bouncycastle') {
+                    details.useTarget 'org.bouncycastle:bcprov-jdk15to18:1.70'
+                }
+            }
+        }
+    }
     repositories {
         google()
         mavenCentral()
