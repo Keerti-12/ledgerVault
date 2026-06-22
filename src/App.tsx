@@ -16,7 +16,7 @@ const Login = React.lazy(() => import('./pages/Login'));
 const LaunchScreen = React.lazy(() => import('./pages/LaunchScreen'));
 
 const App: React.FC = () => {
-  const { setMembers, setWallet, setTransactions, familyId, activeMember } = useAppStore();
+  const { setMembers, setWallet, setTransactions, familyId } = useAppStore();
 
   React.useEffect(() => {
     if (!familyId) return;

@@ -4,13 +4,6 @@ import { useAppStore } from '../store/useAppStore';
 import { Card } from '../components/Card';
 import { ShieldCheck, Users } from 'lucide-react';
 
-const DEFAULT_MEMBERS: Member[] = [
-  { id: '1', name: 'Mom', avatar: '👩', role: 'Admin' },
-  { id: '2', name: 'Dad', avatar: '👨', role: 'Admin' },
-  { id: '3', name: 'Son', avatar: '🧑', role: 'Member' },
-  { id: '4', name: 'Daughter', avatar: '👧', role: 'Member' }
-];
-
 export default function LaunchScreen() {
   const { setActiveMember, members, familyName } = useAppStore();
   const navigate = useNavigate();

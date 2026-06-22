@@ -2,7 +2,7 @@ export interface Member {
   id: string;
   name: string;
   avatar: string;
-  role: 'Admin' | 'Member';
+  role: 'Admin' | 'Member' | 'Parent' | 'Kid';
 }
 
 export interface Transaction {

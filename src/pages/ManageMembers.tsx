@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { Plus, Trash2, Edit3, X, Check, ArrowLeft, Users, UserPlus, ShieldAlert } from 'lucide-react';
+import { Trash2, Edit3, X, Check, ArrowLeft, Users, UserPlus, ShieldAlert } from 'lucide-react';
 import { addMember, deleteMember, editMember } from '../services/db';
+import { Member } from '../types';
 import { useNavigate } from 'react-router-dom';
 
 export default function ManageMembers() {
@@ -11,12 +12,12 @@ export default function ManageMembers() {
   const navigate = useNavigate();
 
   const [newMemberName, setNewMemberName] = useState('');
-  const [newMemberRole, setNewMemberRole] = useState('Kid');
+  const [newMemberRole, setNewMemberRole] = useState<Member['role']>('Kid');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [editRole, setEditRole] = useState('Kid');
+  const [editRole, setEditRole] = useState<Member['role']>('Kid');
 
   if (!isAdminAuthenticated) {
     return (
@@ -125,7 +126,7 @@ export default function ManageMembers() {
           <div className="flex gap-3 w-full sm:w-auto">
             <select 
               value={newMemberRole}
-              onChange={(e) => setNewMemberRole(e.target.value)}
+              onChange={(e) => setNewMemberRole(e.target.value as Member['role'])}
               className="flex-1 sm:w-36 h-14 px-4 rounded-xl border-2 border-slate-100 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all font-bold text-slate-700 shadow-sm min-w-0"
             >
               <option value="Kid">Kid</option>
@@ -168,8 +169,8 @@ export default function ManageMembers() {
                   
                   <select 
                     value={editRole}
-                    onChange={(e) => setEditRole(e.target.value)}
-                    className="w-full h-12 px-3 rounded-lg border border-slate-200 bg-white font-medium shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                    onChange={(e) => setEditRole(e.target.value as Member['role'])}
+                    className="w-full h-12 px-3 rounded-lg border border-slate-200 font-medium bg-white shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                   >
                     <option value="Kid">Kid</option>
                     <option value="Parent">Parent</option>
