@@ -236,11 +236,7 @@ export const deleteTransaction = async (familyId: string, transactionId: string)
         lastUpdated: Date.now()
       });
       
-      transaction.update(txRef, {
-        deleted: true,
-        edited: true,
-        timestamp: Date.now()
-      });
+      transaction.delete(txRef);
     });
     return true;
   } catch (error) {
