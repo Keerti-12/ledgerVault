@@ -491,6 +491,16 @@ export const changeAdminPasswordHash = async (familyId: string, newHash: string)
   }
 };
 
+export const getAdminPasswordHash = async (familyId: string) => {
+  try {
+    const { data: settings } = await supabase.from('settings').select('admin_password_hash').eq('family_id', familyId).single();
+    return settings ? settings.admin_password_hash : '';
+  } catch (e) {
+    console.error("Failed to fetch admin password hash:", e);
+    return '';
+  }
+};
+
 export const addRecurringTransaction = async (familyId: string, rtxData: Omit<RecurringTransaction, 'id' | 'createdAt'>) => {
   try {
     const { error } = await supabase.from('recurring_transactions').insert({

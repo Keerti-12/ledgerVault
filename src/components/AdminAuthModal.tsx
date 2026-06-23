@@ -4,8 +4,7 @@ import { Button } from './Button';
 import { ShieldAlert } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { verifyAdminPassword } from '../utils';
-import { getFamilySettingsRef } from '../services/db';
-import { getDoc } from 'firebase/firestore';
+import { getAdminPasswordHash } from '../services/db';
 
 interface AdminAuthModalProps {
   isOpen: boolean;
@@ -29,10 +28,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ isOpen, onClose,
     try {
       let storedHash = '';
       if (familyId) {
-        const settingsSnap = await getDoc(getFamilySettingsRef(familyId));
-        if (settingsSnap.exists() && settingsSnap.data().adminPasswordHash) {
-          storedHash = settingsSnap.data().adminPasswordHash;
-        }
+        storedHash = await getAdminPasswordHash(familyId);
       }
       
       if (!storedHash) {

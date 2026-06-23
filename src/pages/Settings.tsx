@@ -5,9 +5,8 @@ import { Button } from '../components/Button';
 import { AdminAuthModal } from '../components/AdminAuthModal';
 import { ShieldCheck, LogOut, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { resetBalanceAndArchive, clearTransactionHistory, changeFamilyPin, changeAdminPasswordHash, getFamilySettingsRef } from '../services/db';
+import { resetBalanceAndArchive, clearTransactionHistory, changeFamilyPin, changeAdminPasswordHash, getAdminPasswordHash } from '../services/db';
 import { generateHash, verifyAdminPassword } from '../utils';
-import { getDoc } from 'firebase/firestore';
 
 export default function Settings() {
   const { activeMember, isAdminAuthenticated, setAdminAuthenticated, logoutFamily, familyName, familyId } = useAppStore();
@@ -86,10 +85,9 @@ export default function Settings() {
   const handleChangeAdminPass = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!familyId) return;
-    const settingsSnap = await getDoc(getFamilySettingsRef(familyId));
-    let storedHash = '6ecf763ff6e7cef7b47e6611e1bf76fe2608a2e32a97b2d88b083ae1d8d02c82';
-    if (settingsSnap.exists() && settingsSnap.data().adminPasswordHash) {
-      storedHash = settingsSnap.data().adminPasswordHash;
+    let storedHash = await getAdminPasswordHash(familyId);
+    if (!storedHash) {
+      storedHash = '6ecf763ff6e7cef7b47e6611e1bf76fe2608a2e32a97b2d88b083ae1d8d02c82';
     }
     
     const isValid = await verifyAdminPassword(oldAdminPass, storedHash);
