@@ -76,7 +76,12 @@ export const loginFamily = async (adminName: string, pin: string) => {
 export const subscribeToWallet = (familyId: string, callback: (wallet: Wallet | null) => void) => {
   return onSnapshot(getWalletRef(familyId), (docSnapshot) => {
     if (docSnapshot.exists()) {
-      callback(docSnapshot.data() as Wallet);
+      const data = docSnapshot.data() as Wallet;
+      // Auto-migrate old wallets to 0 threshold
+      if (data.minimumThreshold !== 0) {
+        updateDoc(getWalletRef(familyId), { minimumThreshold: 0 });
+      }
+      callback(data);
     } else {
       callback(null);
     }
