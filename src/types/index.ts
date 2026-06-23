@@ -5,6 +5,12 @@ export interface Member {
   role: 'Admin' | 'Member' | 'Parent' | 'Kid';
 }
 
+export interface TransactionEdit {
+  oldAmount: number;
+  oldPurpose: string;
+  editedAt: number;
+}
+
 export interface Transaction {
   id: string;
   memberId: string;
@@ -18,6 +24,7 @@ export interface Transaction {
   timestamp: number;
   edited: boolean;
   deleted: boolean;
+  editHistory?: TransactionEdit[];
 }
 
 export interface Wallet {

@@ -3,7 +3,7 @@ import { useAppStore } from '../store/useAppStore';
 import { Card } from '../components/Card';
 
 import { formatCurrency, formatDate, formatTime } from '../utils';
-import { Search, Filter, ArrowDownRight, ArrowUpRight, Trash2, Edit3, X, Check } from 'lucide-react';
+import { Search, Filter, ArrowDownRight, ArrowUpRight, Trash2, Edit3, X, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { deleteTransaction, editTransaction } from '../services/db';
 
 export default function History() {
@@ -11,6 +11,7 @@ export default function History() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'All' | 'Add' | 'Withdraw'>('All');
   
+  const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState<string>('');
   const [editPurpose, setEditPurpose] = useState<string>('');
@@ -116,7 +117,14 @@ export default function History() {
               </div>
             ) : (
               <>
-                <div className="flex justify-between items-start mb-3">
+                <div 
+                  className={`flex justify-between items-start mb-3 ${tx.editHistory?.length ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                  onClick={() => {
+                    if (tx.editHistory?.length) {
+                      setExpandedTxId(expandedTxId === tx.id ? null : tx.id);
+                    }
+                  }}
+                >
                   <div className="flex items-center space-x-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tx.transactionType === 'Add' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
                       {tx.transactionType === 'Add' ? <ArrowDownRight size={20} /> : <ArrowUpRight size={20} />}
@@ -133,6 +141,9 @@ export default function History() {
                     <p className="text-xs text-slate-500 flex justify-end gap-1 items-center">
                       {tx.edited && <span className="text-[10px] bg-slate-100 px-1 rounded text-slate-400">Edited</span>}
                       {formatTime(tx.timestamp)}
+                      {tx.editHistory?.length ? (
+                        expandedTxId === tx.id ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />
+                      ) : null}
                     </p>
                   </div>
                 </div>
@@ -153,6 +164,23 @@ export default function History() {
                     <span>Bal: {formatCurrency(tx.balanceAfterTransaction)}</span>
                   </div>
                 </div>
+
+                {expandedTxId === tx.id && tx.editHistory && tx.editHistory.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-slate-100 space-y-2 bg-slate-50 rounded-lg p-3 animate-in slide-in-from-top-2 duration-200">
+                    <p className="text-xs font-semibold text-slate-600 mb-1">Edit History (Previous Values)</p>
+                    {[...tx.editHistory].reverse().map((edit, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-xs text-slate-500 border-b border-slate-200/50 last:border-0 pb-2 last:pb-0">
+                        <span className="truncate max-w-[120px]">{edit.oldPurpose}</span>
+                        <div className="flex gap-3 items-center">
+                          <span className={tx.transactionType === 'Add' ? 'text-emerald-600/80 font-medium' : 'text-slate-600 font-medium'}>
+                            {tx.transactionType === 'Add' ? '+' : '-'}{formatCurrency(edit.oldAmount)}
+                          </span>
+                          <span className="text-[10px]">{formatDate(edit.editedAt)} {formatTime(edit.editedAt)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             )}
           </Card>

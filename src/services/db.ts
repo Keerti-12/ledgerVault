@@ -130,7 +130,7 @@ export const addTransaction = async (familyId: string, txData: Omit<Transaction,
       if (!walletDoc.exists()) {
         transaction.set(walletRef, {
           currentBalance: 0,
-          minimumThreshold: 1000,
+          minimumThreshold: 0,
           lastUpdated: Date.now()
         });
       } else {
@@ -280,9 +280,17 @@ export const editTransaction = async (familyId: string, transactionId: string, u
         lastUpdated: Date.now()
       });
       
+      const newHistory = [...(oldTxData.editHistory || [])];
+      newHistory.push({
+        oldAmount: oldTxData.amount,
+        oldPurpose: oldTxData.purpose,
+        editedAt: Date.now()
+      });
+      
       transaction.update(txRef, {
         ...updatedData,
         edited: true,
+        editHistory: newHistory,
         balanceAfterTransaction: currentBalance
       });
     });
@@ -340,5 +348,32 @@ export const resetBalanceAndArchive = async (familyId: string) => {
   } catch (error) {
     console.error("Reset balance failed:", error);
     return { success: false, error: 'Failed to reset balance and archive report.' };
+  }
+};
+
+export const clearTransactionHistory = async (familyId: string) => {
+  try {
+    const txSnapshot = await getDocs(getTransactionsRef(familyId));
+    if (txSnapshot.empty) {
+      return { success: true };
+    }
+    
+    const batch = writeBatch(db);
+    
+    txSnapshot.docs.forEach(docSnap => {
+      batch.delete(docSnap.ref);
+    });
+    
+    const walletRef = getWalletRef(familyId);
+    batch.update(walletRef, {
+      currentBalance: 0,
+      lastUpdated: Date.now()
+    });
+    
+    await batch.commit();
+    return { success: true };
+  } catch (error) {
+    console.error("Clear history failed:", error);
+    return { success: false, error: 'Failed to clear transaction history.' };
   }
 };

@@ -3,17 +3,17 @@ import { useAppStore } from '../store/useAppStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { AdminAuthModal } from '../components/AdminAuthModal';
-import { ShieldCheck, User, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { ShieldCheck, User, Settings as SettingsIcon, LogOut, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { resetBalanceAndArchive } from '../services/db';
+import { resetBalanceAndArchive, clearTransactionHistory } from '../services/db';
 
 export default function Settings() {
   const { activeMember, isAdminAuthenticated, setAdminAuthenticated, logoutFamily, familyName, familyId } = useAppStore();
   const navigate = useNavigate();
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authTarget, setAuthTarget] = useState<'reset' | 'members' | null>(null);
+  const [authTarget, setAuthTarget] = useState<'reset' | 'members' | 'clear_history' | null>(null);
 
-  const requireAdmin = (target: 'reset' | 'members') => {
+  const handleAdminActionClick = (target: 'reset' | 'members' | 'clear_history') => {
     if (isAdminAuthenticated) {
       executeAdminAction(target);
     } else {
@@ -29,7 +29,7 @@ export default function Settings() {
     }
   };
 
-  const executeAdminAction = async (target: 'reset' | 'members') => {
+  const executeAdminAction = async (target: 'reset' | 'members' | 'clear_history') => {
     if (target === 'reset') {
       if (window.confirm('Are you sure you want to reset the home balance to zero? This action will generate a final report for this month and delete all current transactions.')) {
         if (!familyId) return;
@@ -38,6 +38,16 @@ export default function Settings() {
           alert('Balance has been reset successfully and the report is available in the Reports tab.');
         } else {
           alert(res.error || 'Failed to reset balance');
+        }
+      }
+    } else if (target === 'clear_history') {
+      if (window.confirm('WARNING: Are you sure you want to completely wipe the current transaction history? This will NOT generate a report. All current transactions will be lost forever.')) {
+        if (!familyId) return;
+        const res = await clearTransactionHistory(familyId);
+        if (res.success) {
+          alert('Transaction history cleared successfully.');
+        } else {
+          alert(res.error || 'Failed to clear history');
         }
       }
     } else if (target === 'members') {
@@ -63,13 +73,16 @@ export default function Settings() {
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider ml-1">App Preferences</h3>
         
         <Card className="divide-y divide-slate-100">
-          <div className="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors">
+          <div className="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => handleAdminActionClick('reset')}>
             <div className="flex items-center text-slate-700">
-              <SettingsIcon size={20} className="mr-3 text-slate-400" />
-              <span className="font-semibold">App Notifications</span>
+              <ShieldCheck size={20} className="mr-3 text-rose-400" />
+              <span className="font-semibold text-rose-600">Reset Balance & Generate Report</span>
             </div>
-            <div className="w-11 h-6 bg-emerald-500 rounded-full border-2 border-transparent relative transition-colors cursor-pointer">
-              <div className="w-5 h-5 bg-white rounded-full absolute right-0 shadow-sm transition-transform"></div>
+          </div>
+          <div className="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => handleAdminActionClick('clear_history')}>
+            <div className="flex items-center text-slate-700">
+              <Trash2 size={20} className="mr-3 text-rose-400" />
+              <span className="font-semibold text-rose-600">Clear Transaction History</span>
             </div>
           </div>
         </Card>
@@ -83,15 +96,9 @@ export default function Settings() {
         <Card className="divide-y divide-slate-100 border-rose-100">
           <div 
             className="py-3 flex justify-between items-center cursor-pointer hover:bg-rose-50 transition-colors"
-            onClick={() => requireAdmin('members')}
+            onClick={() => handleAdminActionClick('members')}
           >
             <span className="font-semibold text-slate-700">Manage Family Members</span>
-          </div>
-          <div 
-            className="py-3 flex justify-between items-center cursor-pointer hover:bg-rose-50 transition-colors"
-            onClick={() => requireAdmin('reset')}
-          >
-            <span className="font-semibold text-rose-600">Reset Balance</span>
           </div>
           {isAdminAuthenticated && (
             <div className="py-3 flex justify-between items-center bg-emerald-50 mt-2 px-3 rounded-xl">
