@@ -138,25 +138,24 @@ export default function Reports() {
     
     const fileName = `GharCash_Report_${reportMonthYear.replace(/ /g, '_')}.pdf`;
     
-    // Attempt to use Web Share API for mobile devices 
-    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && navigator.canShare) {
-      try {
-        const pdfBlob = doc.output('blob');
-        const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-        if (navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: 'GharCash Report',
-            text: 'Here is the monthly report from GharCash.'
-          });
-          return;
-        }
-      } catch (error) {
-        console.log("Error sharing:", error);
+    try {
+      const pdfBlob = doc.output('blob');
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      
+      // 1. Try Web Share API (Best for Mobile/PWA)
+      if (navigator.share) {
+         // Some older browsers don't support sharing files, but we try anyway
+         await navigator.share({
+           files: [file],
+           title: 'GharCash Report',
+         });
+         return; // If successful, exit
       }
+    } catch (error) {
+      console.log("Web Share API failed, falling back to standard download:", error);
     }
     
-    // Fallback to standard save for desktop or if share fails
+    // 2. Fallback to standard save for desktop or if share fails
     doc.save(fileName);
   };
 
