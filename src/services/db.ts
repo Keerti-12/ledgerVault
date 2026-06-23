@@ -313,7 +313,7 @@ export const editTransaction = async (familyId: string, transactionId: string, u
         balanceAfterTransaction: currentBalance
       });
     });
-    return true;
+    return { success: true };
   } catch (error: any) {
     console.error("Edit transaction failed: ", error);
     return { success: false, error: error.message || "Failed to edit transaction" };

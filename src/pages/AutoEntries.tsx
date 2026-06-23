@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { Trash2, Edit3, X, Check, ArrowLeft, Clock, PlusCircle, ShieldAlert, Play, Pause } from 'lucide-react';
+import { Trash2, ArrowLeft, Clock, PlusCircle, Play, Pause } from 'lucide-react';
 import { addRecurringTransaction, deleteRecurringTransaction, toggleRecurringTransaction, subscribeToRecurringTransactions } from '../services/db';
 import { RecurringTransaction } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency, formatDate } from '../utils';
 
 export default function AutoEntries() {
-  const { members, activeMember, familyId } = useAppStore();
+  const { members, familyId } = useAppStore();
   const navigate = useNavigate();
 
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([]);
