@@ -39,9 +39,8 @@ export default function WithdrawCash() {
     if (!member || !familyId) return;
 
     if (wallet && Number(amount) > wallet.currentBalance) {
-      if (!window.confirm("Amount exceeds current balance! Are you sure you want to withdraw?")) {
-        return;
-      }
+      alert("Withdrawal amount cannot be greater than the current balance!");
+      return;
     }
 
     setLoading(true);
