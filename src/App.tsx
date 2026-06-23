@@ -12,6 +12,7 @@ const History = React.lazy(() => import('./pages/History'));
 const Reports = React.lazy(() => import('./pages/Reports'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const ManageMembers = React.lazy(() => import('./pages/ManageMembers'));
+const AutoEntries = React.lazy(() => import('./pages/AutoEntries'));
 const Login = React.lazy(() => import('./pages/Login'));
 const LaunchScreen = React.lazy(() => import('./pages/LaunchScreen'));
 
@@ -62,6 +63,7 @@ const LaunchScreen = React.lazy(() => import('./pages/LaunchScreen'));
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/manage-members" element={<ManageMembers />} />
+            <Route path="/auto-entries" element={<AutoEntries />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
           

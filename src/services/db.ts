@@ -9,12 +9,13 @@ import {
   deleteDoc,
   updateDoc,
   getDocs,
+  getDoc,
   setDoc,
   where,
   writeBatch
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Transaction, Wallet, Member, Report } from '../types';
+import { Transaction, Wallet, Member, Report, RecurringTransaction } from '../types';
 
 // Dynamic collection getters for Multi-Tenant Architecture
 export const getFamilyRef = (familyId: string) => doc(db, 'families', familyId);
@@ -23,6 +24,7 @@ export const getTransactionsRef = (familyId: string) => collection(db, 'families
 export const getWalletRef = (familyId: string) => doc(db, 'families', familyId, 'wallet', 'main');
 export const getFamilySettingsRef = (familyId: string) => doc(db, 'families', familyId, 'settings', 'main');
 export const getReportsRef = (familyId: string) => collection(db, 'families', familyId, 'reports');
+export const getRecurringTransactionsRef = (familyId: string) => collection(db, 'families', familyId, 'recurring_transactions');
 
 // ==========================================
 // AUTHENTICATION
@@ -117,6 +119,17 @@ export const subscribeToReports = (familyId: string, callback: (reports: Report[
       reports.push({ id: doc.id, ...doc.data() } as Report);
     });
     callback(reports);
+  });
+};
+
+export const subscribeToRecurringTransactions = (familyId: string, callback: (rtxs: RecurringTransaction[]) => void) => {
+  const q = query(getRecurringTransactionsRef(familyId), orderBy('createdAt', 'desc'));
+  return onSnapshot(q, (snapshot) => {
+    const rtxs: RecurringTransaction[] = [];
+    snapshot.forEach((doc) => {
+      rtxs.push({ id: doc.id, ...doc.data() } as RecurringTransaction);
+    });
+    callback(rtxs);
   });
 };
 
@@ -386,5 +399,141 @@ export const deleteReport = async (familyId: string, reportId: string) => {
   } catch (error) {
     console.error("Delete report failed:", error);
     return { success: false, error: 'Failed to delete report.' };
+  }
+};
+
+export const changeFamilyPin = async (familyId: string, oldPin: string, newPin: string) => {
+  try {
+    const familyRef = doc(db, 'families', familyId);
+    const snap = await getDoc(familyRef);
+    if (!snap.exists()) return { success: false, error: 'Family not found' };
+    if (snap.data().pin !== oldPin) return { success: false, error: 'Incorrect previous PIN' };
+    if (!/^\d{4}$/.test(newPin)) return { success: false, error: 'PIN must be exactly 4 digits' };
+    
+    await updateDoc(familyRef, { pin: newPin });
+    return { success: true };
+  } catch (error) {
+    console.error("Change PIN failed:", error);
+    return { success: false, error: 'Failed to change PIN.' };
+  }
+};
+
+export const changeAdminPasswordHash = async (familyId: string, newHash: string) => {
+  try {
+    const settingsRef = getFamilySettingsRef(familyId);
+    await updateDoc(settingsRef, { adminPasswordHash: newHash });
+    return { success: true };
+  } catch (error) {
+    console.error("Change Admin Password failed:", error);
+    return { success: false, error: 'Failed to change admin password.' };
+  }
+};
+
+export const addRecurringTransaction = async (familyId: string, rtxData: Omit<RecurringTransaction, 'id' | 'createdAt'>) => {
+  try {
+    const docRef = await addDoc(getRecurringTransactionsRef(familyId), {
+      ...rtxData,
+      createdAt: Date.now()
+    });
+    await updateDoc(docRef, { id: docRef.id });
+    return true;
+  } catch (e) {
+    console.error("Error adding recurring transaction: ", e);
+    return false;
+  }
+};
+
+export const deleteRecurringTransaction = async (familyId: string, rtxId: string) => {
+  try {
+    await deleteDoc(doc(db, 'families', familyId, 'recurring_transactions', rtxId));
+    return true;
+  } catch (e) {
+    console.error("Error deleting recurring transaction: ", e);
+    return false;
+  }
+};
+
+export const toggleRecurringTransaction = async (familyId: string, rtxId: string, active: boolean) => {
+  try {
+    await updateDoc(doc(db, 'families', familyId, 'recurring_transactions', rtxId), { active });
+    return true;
+  } catch (e) {
+    console.error("Error toggling recurring transaction: ", e);
+    return false;
+  }
+};
+
+export const processRecurringTransactions = async (familyId: string) => {
+  try {
+    const now = Date.now();
+    const q = query(getRecurringTransactionsRef(familyId), where('active', '==', true), where('nextRunDate', '<=', now));
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) return { success: true, processed: 0 };
+    
+    let processedCount = 0;
+    
+    for (const docSnap of snapshot.docs) {
+      await runTransaction(db, async (transaction) => {
+        const rtxRef = docSnap.ref;
+        const rtxDoc = await transaction.get(rtxRef);
+        if (!rtxDoc.exists()) return;
+        
+        const rtxData = rtxDoc.data() as RecurringTransaction;
+        if (!rtxData.active || rtxData.nextRunDate > now) return;
+        
+        const walletRef = getWalletRef(familyId);
+        const walletDoc = await transaction.get(walletRef);
+        let currentBalance = walletDoc.exists() ? walletDoc.data().currentBalance : 0;
+        
+        if (rtxData.transactionType === 'Add') {
+          currentBalance += rtxData.amount;
+        } else {
+          currentBalance -= rtxData.amount;
+        }
+        
+        const newTxRef = doc(getTransactionsRef(familyId));
+        const finalTx: Transaction = {
+          id: newTxRef.id,
+          memberId: rtxData.memberId,
+          memberName: rtxData.memberName,
+          transactionType: rtxData.transactionType,
+          amount: rtxData.amount,
+          purpose: rtxData.purpose + ' (Auto)',
+          category: rtxData.category,
+          balanceAfterTransaction: currentBalance,
+          timestamp: now,
+          edited: false,
+          deleted: false
+        };
+        
+        let nextDate = new Date(rtxData.nextRunDate);
+        if (rtxData.frequency === 'Daily') {
+          nextDate.setDate(nextDate.getDate() + 1);
+        } else if (rtxData.frequency === 'Weekly') {
+          nextDate.setDate(nextDate.getDate() + 7);
+        } else if (rtxData.frequency === 'Monthly') {
+          nextDate.setMonth(nextDate.getMonth() + 1);
+        }
+        
+        transaction.update(walletRef, {
+          currentBalance: currentBalance,
+          lastUpdated: now
+        });
+        
+        transaction.set(newTxRef, finalTx);
+        
+        transaction.update(rtxRef, {
+          nextRunDate: nextDate.getTime()
+        });
+        
+        processedCount++;
+      });
+    }
+    
+    return { success: true, processed: processedCount };
+  } catch (error) {
+    console.error("Failed to process recurring transactions:", error);
+    return { success: false, error };
   }
 };

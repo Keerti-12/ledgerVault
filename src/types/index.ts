@@ -59,3 +59,17 @@ export interface Settings {
   currency: string;
   minimumThreshold: number;
 }
+
+export interface RecurringTransaction {
+  id: string;
+  memberId: string;
+  memberName: string;
+  transactionType: 'Add' | 'Withdraw';
+  amount: number;
+  purpose: string;
+  category: string;
+  frequency: 'Daily' | 'Weekly' | 'Monthly';
+  nextRunDate: number;
+  active: boolean;
+  createdAt: number;
+}

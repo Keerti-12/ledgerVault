@@ -4,16 +4,23 @@ import { useAppStore } from '../store/useAppStore';
 import { formatCurrency } from '../utils';
 import { Card } from '../components/Card';
 import { PlusCircle, MinusCircle, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { processRecurringTransactions } from '../services/db';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { wallet, transactions, activeMember } = useAppStore();
+  const { wallet, transactions, activeMember, familyId } = useAppStore();
 
   useEffect(() => {
     if (!activeMember) {
       navigate('/select-member');
     }
   }, [activeMember, navigate]);
+
+  useEffect(() => {
+    if (familyId) {
+      processRecurringTransactions(familyId).catch(console.error);
+    }
+  }, [familyId]);
 
   const balance = wallet?.currentBalance || 0;
   const isLowBalance = wallet?.minimumThreshold && balance < wallet.minimumThreshold;

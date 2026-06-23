@@ -163,6 +163,14 @@ export default function Settings() {
           >
             <span className="font-semibold text-slate-700">Manage Family Members</span>
           </div>
+          {isAdminAuthenticated && (
+            <div 
+              className="py-3 flex justify-between items-center cursor-pointer hover:bg-rose-50 transition-colors border-t border-slate-100"
+              onClick={() => navigate('/auto-entries')}
+            >
+              <span className="font-semibold text-slate-700">Manage Auto Entries</span>
+            </div>
+          )}
           {isAdminAuthenticated ? (
             <>
               <div className="py-3 flex justify-between items-center bg-emerald-50 mt-2 px-3 rounded-xl mb-2">
