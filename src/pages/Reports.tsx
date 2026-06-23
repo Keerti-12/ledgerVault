@@ -225,6 +225,7 @@ export default function Reports() {
               <input
                 type="date"
                 value={customStartDate}
+                max={customEndDate || new Date().toISOString().split('T')[0]}
                 onChange={(e) => setCustomStartDate(e.target.value)}
                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-200 text-slate-600"
               />
@@ -234,6 +235,8 @@ export default function Reports() {
               <input
                 type="date"
                 value={customEndDate}
+                min={customStartDate}
+                max={new Date().toISOString().split('T')[0]}
                 onChange={(e) => setCustomEndDate(e.target.value)}
                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-200 text-slate-600"
               />
