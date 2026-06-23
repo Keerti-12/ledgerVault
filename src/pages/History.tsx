@@ -92,6 +92,7 @@ export default function History() {
           </div>
           <input
             type="date"
+            max={new Date().toISOString().split('T')[0]}
             className="w-40 px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 outline-none transition-all shadow-sm text-slate-600"
             value={searchDate}
             onChange={(e) => setSearchDate(e.target.value)}
