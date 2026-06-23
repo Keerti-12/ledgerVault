@@ -13,28 +13,40 @@ import { deleteReport } from '../services/db';
 
 export default function Reports() {
   const { transactions, reports, familyId, isAdminAuthenticated } = useAppStore();
-  const [activeTab, setActiveTab] = useState<'current' | 'past'>('current');
+  const [activeTab, setActiveTab] = useState<'current' | 'past' | 'custom'>('current');
   const [selectedReportId, setSelectedReportId] = useState<string | null>(reports.length > 0 ? reports[0].id : null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   const targetTransactions = useMemo(() => {
     if (activeTab === 'current') {
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
       return transactions.filter(tx => !tx.deleted && tx.timestamp >= startOfMonth);
+    } else if (activeTab === 'custom') {
+      if (!customStartDate || !customEndDate) return [];
+      const start = new Date(customStartDate).getTime();
+      const end = new Date(customEndDate);
+      end.setHours(23, 59, 59, 999);
+      const endTime = end.getTime();
+      return transactions.filter(tx => !tx.deleted && tx.timestamp >= start && tx.timestamp <= endTime);
     } else {
       const report = reports.find(r => r.id === selectedReportId);
       return report?.transactions || [];
     }
-  }, [activeTab, selectedReportId, transactions, reports]);
+  }, [activeTab, selectedReportId, transactions, reports, customStartDate, customEndDate]);
 
   const reportMonthYear = useMemo(() => {
     if (activeTab === 'current') {
       return new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+    } else if (activeTab === 'custom') {
+      if (!customStartDate || !customEndDate) return 'Custom Range';
+      return `${customStartDate} to ${customEndDate}`;
     } else {
       return reports.find(r => r.id === selectedReportId)?.monthYear || 'Unknown';
     }
-  }, [activeTab, selectedReportId, reports]);
+  }, [activeTab, selectedReportId, reports, customStartDate, customEndDate]);
 
   // Calculations for charts
   const categoryData = useMemo(() => {
@@ -194,7 +206,41 @@ export default function Reports() {
         >
           Past Reports
         </button>
+        <button
+          onClick={() => setActiveTab('custom')}
+          className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
+            activeTab === 'custom' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          Custom
+        </button>
       </div>
+
+      {activeTab === 'custom' && (
+        <div className="mb-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <label className="block text-sm font-medium text-slate-700 mb-3">Select Date Range</label>
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <span className="text-xs text-slate-500 block mb-1">Start Date</span>
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-200 text-slate-600"
+              />
+            </div>
+            <div className="flex-1">
+              <span className="text-xs text-slate-500 block mb-1">End Date</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-200 text-slate-600"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeTab === 'past' && reports.length > 0 && (
         <div className="mb-4">
@@ -226,7 +272,7 @@ export default function Reports() {
         </div>
       )}
 
-      {(activeTab === 'current' || (activeTab === 'past' && reports.length > 0)) && (
+      {(activeTab === 'current' || (activeTab === 'past' && reports.length > 0) || (activeTab === 'custom' && customStartDate && customEndDate)) && (
         <>
           <div className="grid grid-cols-2 gap-4">
         <Card className="bg-emerald-50 border-emerald-100 p-4">

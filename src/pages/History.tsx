@@ -9,6 +9,7 @@ import { deleteTransaction, editTransaction } from '../services/db';
 export default function History() {
   const { transactions, isAdminAuthenticated, familyId } = useAppStore();
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchDate, setSearchDate] = useState('');
   const [filterType, setFilterType] = useState<'All' | 'Add' | 'Withdraw'>('All');
   
   const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
@@ -48,31 +49,52 @@ export default function History() {
         if (filterType !== 'All' && tx.transactionType !== filterType) return false;
         if (searchTerm) {
           const lowerTerm = searchTerm.toLowerCase();
-          return (
+          if (!(
             tx.purpose.toLowerCase().includes(lowerTerm) ||
             tx.memberName.toLowerCase().includes(lowerTerm) ||
             tx.category.toLowerCase().includes(lowerTerm)
-          );
+          )) {
+            return false;
+          }
+        }
+        if (searchDate) {
+          const txDate = new Date(tx.timestamp);
+          const filterDate = new Date(searchDate);
+          if (
+            txDate.getFullYear() !== filterDate.getFullYear() ||
+            txDate.getMonth() !== filterDate.getMonth() ||
+            txDate.getDate() !== filterDate.getDate()
+          ) {
+            return false;
+          }
         }
         return true;
       });
-  }, [transactions, searchTerm, filterType]);
+  }, [transactions, searchTerm, filterType, searchDate]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       <h2 className="text-2xl font-bold text-slate-800">Transaction History</h2>
 
       <div className="space-y-3">
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search size={18} className="text-slate-400" />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search size={18} className="text-slate-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search by purpose, member, or category..."
+              className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 outline-none transition-all shadow-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
           <input
-            type="text"
-            placeholder="Search by purpose, member, or category..."
-            className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 outline-none transition-all shadow-sm"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            type="date"
+            className="w-40 px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 outline-none transition-all shadow-sm text-slate-600"
+            value={searchDate}
+            onChange={(e) => setSearchDate(e.target.value)}
           />
         </div>
         
