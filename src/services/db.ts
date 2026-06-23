@@ -289,6 +289,10 @@ export const editTransaction = async (familyId: string, transactionId: string, u
         currentBalance -= newAmount;
       }
       
+      if (currentBalance < 0) {
+        throw new Error("Insufficient balance to modify this transaction!");
+      }
+      
       transaction.update(walletRef, {
         currentBalance: currentBalance,
         lastUpdated: Date.now()
@@ -310,9 +314,9 @@ export const editTransaction = async (familyId: string, transactionId: string, u
       });
     });
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Edit transaction failed: ", error);
-    return false;
+    return { success: false, error: error.message || "Failed to edit transaction" };
   }
 };
 
@@ -466,14 +470,16 @@ export const toggleRecurringTransaction = async (familyId: string, rtxId: string
 export const processRecurringTransactions = async (familyId: string) => {
   try {
     const now = Date.now();
-    const q = query(getRecurringTransactionsRef(familyId), where('active', '==', true), where('nextRunDate', '<=', now));
+    const q = query(getRecurringTransactionsRef(familyId), where('active', '==', true));
     const snapshot = await getDocs(q);
     
-    if (snapshot.empty) return { success: true, processed: 0 };
+    if (snapshot.empty) return { success: true, processed: 0, skipped: [] };
     
     let processedCount = 0;
+    const skippedEntries: string[] = [];
     
     for (const docSnap of snapshot.docs) {
+      let skippedThisTx = false;
       await runTransaction(db, async (transaction) => {
         const rtxRef = docSnap.ref;
         const rtxDoc = await transaction.get(rtxRef);
@@ -486,11 +492,17 @@ export const processRecurringTransactions = async (familyId: string) => {
         const walletDoc = await transaction.get(walletRef);
         let currentBalance = walletDoc.exists() ? walletDoc.data().currentBalance : 0;
         
-        if (rtxData.transactionType === 'Add') {
-          currentBalance += rtxData.amount;
-        } else {
+        if (rtxData.transactionType === 'Withdraw') {
+          if (currentBalance < rtxData.amount) {
+            skippedThisTx = true;
+            return;
+          }
           currentBalance -= rtxData.amount;
+        } else {
+          currentBalance += rtxData.amount;
         }
+        
+        skippedThisTx = false;
         
         const newTxRef = doc(getTransactionsRef(familyId));
         const finalTx: Transaction = {
@@ -529,9 +541,13 @@ export const processRecurringTransactions = async (familyId: string) => {
         
         processedCount++;
       });
+      
+      if (skippedThisTx) {
+        skippedEntries.push(docSnap.data().purpose);
+      }
     }
     
-    return { success: true, processed: processedCount };
+    return { success: true, processed: processedCount, skipped: skippedEntries };
   } catch (error) {
     console.error("Failed to process recurring transactions:", error);
     return { success: false, error };

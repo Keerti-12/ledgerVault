@@ -18,7 +18,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (familyId) {
-      processRecurringTransactions(familyId).catch(console.error);
+      processRecurringTransactions(familyId)
+        .then((res) => {
+          if (res.skipped && res.skipped.length > 0) {
+            alert(`Skipped auto entries due to insufficient balance: ${res.skipped.join(', ')}`);
+          }
+        })
+        .catch(console.error);
     }
   }, [familyId]);
 

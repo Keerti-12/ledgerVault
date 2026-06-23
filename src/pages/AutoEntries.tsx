@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { formatCurrency, formatDate } from '../utils';
 
 export default function AutoEntries() {
-  const { members, activeMember, isAdminAuthenticated, familyId } = useAppStore();
+  const { members, activeMember, familyId } = useAppStore();
   const navigate = useNavigate();
 
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([]);
@@ -30,21 +30,6 @@ export default function AutoEntries() {
       return () => unsubscribe();
     }
   }, [familyId]);
-
-  if (!isAdminAuthenticated) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[70vh] text-center px-4">
-        <div className="w-20 h-20 bg-rose-100 text-rose-500 rounded-full flex items-center justify-center mb-6 shadow-sm">
-          <ShieldAlert size={36} />
-        </div>
-        <h2 className="text-3xl font-black text-slate-800 mb-3 tracking-tight">Access Denied</h2>
-        <p className="text-slate-500 mb-8 max-w-xs text-lg">You must be logged in as an administrator to manage auto entries.</p>
-        <Button onClick={() => navigate('/settings')} size="lg" className="rounded-full px-8 shadow-lg shadow-emerald-500/20">
-          <ArrowLeft size={18} className="mr-2" /> Return to Settings
-        </Button>
-      </div>
-    );
-  }
 
   const handleAddAutoEntry = async (e: React.FormEvent) => {
     e.preventDefault();

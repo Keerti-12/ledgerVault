@@ -37,12 +37,17 @@ export default function History() {
     const amountNum = parseInt(editAmount);
     if (!amountNum || amountNum <= 0 || !editPurpose.trim()) return;
     
-    await editTransaction(familyId, txId, {
+    const res = await editTransaction(familyId, txId, {
       amount: amountNum,
       purpose: editPurpose.trim(),
       category: editCategory.trim()
     });
-    setEditingTxId(null);
+    
+    if (res.success) {
+      setEditingTxId(null);
+    } else {
+      alert(res.error || 'Failed to edit transaction');
+    }
   };
 
   const filteredTransactions = useMemo(() => {
