@@ -42,6 +42,9 @@ allprojects {
             if (requested.group == 'org.bouncycastle') {
                 details.useTarget 'org.bouncycastle:bcprov-jdk15to18:1.70'
             }
+            if (requested.group == 'org.jetbrains.kotlin' && requested.name.startsWith('kotlin-stdlib')) {
+                details.useVersion '1.8.22'
+            }
         }
     }
 }
