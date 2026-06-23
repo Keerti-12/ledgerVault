@@ -138,7 +138,7 @@ export default function Reports() {
     
     const fileName = `GharCash_Report_${reportMonthYear.replace(/ /g, '_')}.pdf`;
     
-    // Attempt to use Web Share API for mobile devices
+    // Attempt to use Web Share API for mobile devices 
     if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && navigator.canShare) {
       try {
         const pdfBlob = doc.output('blob');
@@ -313,7 +313,7 @@ export default function Reports() {
         <h3 className="font-bold text-slate-800 mb-4">Spending by Category</h3>
         {categoryData.length > 0 ? (
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1}>
               <PieChart>
                 <Pie
                   data={categoryData}
@@ -353,7 +353,7 @@ export default function Reports() {
         <h3 className="font-bold text-slate-800 mb-4">Spending by Member</h3>
         {memberSpendingData.length > 0 ? (
           <div className="h-64 mt-4">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1}>
               <BarChart data={memberSpendingData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(val) => `₹${val}`} />
