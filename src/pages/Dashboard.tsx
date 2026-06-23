@@ -21,7 +21,12 @@ export default function Dashboard() {
       processRecurringTransactions(familyId)
         .then((res) => {
           if (res.skipped && res.skipped.length > 0) {
-            alert(`Skipped auto entries due to insufficient balance: ${res.skipped.join(', ')}`);
+            const now = Date.now();
+            const lastAlertTime = sessionStorage.getItem('lastSkippedAlertTime');
+            if (!lastAlertTime || now - parseInt(lastAlertTime) > 300000) {
+              alert(`Skipped auto entries due to insufficient balance: ${res.skipped.join(', ')}`);
+              sessionStorage.setItem('lastSkippedAlertTime', now.toString());
+            }
           }
         })
         .catch(console.error);
