@@ -8,6 +8,7 @@ export interface Member {
 export interface TransactionEdit {
   oldAmount: number;
   oldPurpose: string;
+  oldCategory?: string;
   editedAt: number;
 }
 

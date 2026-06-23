@@ -16,6 +16,7 @@ export default function History() {
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState<string>('');
   const [editPurpose, setEditPurpose] = useState<string>('');
+  const [editCategory, setEditCategory] = useState<string>('');
 
   const handleDelete = async (id: string) => {
     if (!familyId) return;
@@ -28,6 +29,7 @@ export default function History() {
     setEditingTxId(tx.id);
     setEditAmount(tx.amount.toString());
     setEditPurpose(tx.purpose);
+    setEditCategory(tx.category || '');
   };
 
   const handleEditSubmit = async (txId: string) => {
@@ -37,7 +39,8 @@ export default function History() {
     
     await editTransaction(familyId, txId, {
       amount: amountNum,
-      purpose: editPurpose.trim()
+      purpose: editPurpose.trim(),
+      category: editCategory.trim()
     });
     setEditingTxId(null);
   };
@@ -130,6 +133,30 @@ export default function History() {
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-emerald-400"
                   placeholder="Amount"
                 />
+                {tx.transactionType === 'Withdraw' ? (
+                  <select 
+                    value={editCategory} 
+                    onChange={(e) => setEditCategory(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-emerald-400"
+                  >
+                    <option value="Grocery">Grocery</option>
+                    <option value="Milk">Milk</option>
+                    <option value="Medicine">Medicine</option>
+                    <option value="Petrol">Petrol</option>
+                    <option value="Household">Household</option>
+                    <option value="Recharge">Recharge</option>
+                    <option value="Education">Education</option>
+                    <option value="Other">Other</option>
+                  </select>
+                ) : (
+                  <input 
+                    type="text" 
+                    value={editCategory} 
+                    onChange={(e) => setEditCategory(e.target.value)} 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-emerald-400"
+                    placeholder="Category"
+                  />
+                )}
                 <button 
                   onClick={() => handleEditSubmit(tx.id!)}
                   disabled={!editAmount || !editPurpose.trim()}
@@ -193,7 +220,7 @@ export default function History() {
                     <p className="text-xs font-semibold text-slate-600 mb-1">Edit History (Previous Values)</p>
                     {[...tx.editHistory].reverse().map((edit, idx) => (
                       <div key={idx} className="flex justify-between items-center text-xs text-slate-500 border-b border-slate-200/50 last:border-0 pb-2 last:pb-0">
-                        <span className="truncate max-w-[120px]">{edit.oldPurpose}</span>
+                        <span className="truncate max-w-[120px]">{edit.oldPurpose} {edit.oldCategory ? `(${edit.oldCategory})` : ''}</span>
                         <div className="flex gap-3 items-center">
                           <span className={tx.transactionType === 'Add' ? 'text-emerald-600/80 font-medium' : 'text-slate-600 font-medium'}>
                             {tx.transactionType === 'Add' ? '+' : '-'}{formatCurrency(edit.oldAmount)}

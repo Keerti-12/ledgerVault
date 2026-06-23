@@ -289,6 +289,7 @@ export const editTransaction = async (familyId: string, transactionId: string, u
       newHistory.push({
         oldAmount: oldTxData.amount,
         oldPurpose: oldTxData.purpose,
+        oldCategory: oldTxData.category,
         editedAt: Date.now()
       });
       
