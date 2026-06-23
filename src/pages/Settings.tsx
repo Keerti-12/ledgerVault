@@ -5,10 +5,10 @@ import { Button } from '../components/Button';
 import { AdminAuthModal } from '../components/AdminAuthModal';
 import { ShieldCheck, User, Settings as SettingsIcon, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
+import { resetBalanceAndArchive } from '../services/db';
 
 export default function Settings() {
-  const { activeMember, isAdminAuthenticated, setAdminAuthenticated, logoutFamily, familyName } = useAppStore();
+  const { activeMember, isAdminAuthenticated, setAdminAuthenticated, logoutFamily, familyName, familyId } = useAppStore();
   const navigate = useNavigate();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authTarget, setAuthTarget] = useState<'reset' | 'members' | null>(null);
@@ -29,10 +29,16 @@ export default function Settings() {
     }
   };
 
-  const executeAdminAction = (target: 'reset' | 'members') => {
+  const executeAdminAction = async (target: 'reset' | 'members') => {
     if (target === 'reset') {
-      if (window.confirm('Are you sure you want to reset the home balance to zero? This action will be logged.')) {
-        alert('Not fully implemented in this demo, but the admin gate works!');
+      if (window.confirm('Are you sure you want to reset the home balance to zero? This action will generate a final report for this month and delete all current transactions.')) {
+        if (!familyId) return;
+        const res = await resetBalanceAndArchive(familyId);
+        if (res.success) {
+          alert('Balance has been reset successfully and the report is available in the Reports tab.');
+        } else {
+          alert(res.error || 'Failed to reset balance');
+        }
       }
     } else if (target === 'members') {
       navigate('/manage-members');
@@ -57,12 +63,6 @@ export default function Settings() {
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider ml-1">App Preferences</h3>
         
         <Card className="divide-y divide-slate-100">
-          <div className="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors">
-            <div className="flex items-center text-slate-700">
-              <User size={20} className="mr-3 text-slate-400" />
-              <span className="font-semibold">Switch Member</span>
-            </div>
-          </div>
           <div className="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors">
             <div className="flex items-center text-slate-700">
               <SettingsIcon size={20} className="mr-3 text-slate-400" />

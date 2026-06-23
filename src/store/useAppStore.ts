@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Member, Transaction, Wallet } from '../types';
+import { Member, Transaction, Wallet, Report } from '../types';
 
 interface AppState {
   // Multi-Tenant Session
@@ -26,6 +26,9 @@ interface AppState {
   
   members: Member[];
   setMembers: (members: Member[]) => void;
+  
+  reports: Report[];
+  setReports: (reports: Report[]) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -50,6 +53,9 @@ export const useAppStore = create<AppState>()(
       
       members: [],
       setMembers: (members) => set({ members }),
+      
+      reports: [],
+      setReports: (reports) => set({ reports }),
     }),
     {
       name: 'ledgervault-session',

@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
-import { subscribeToMembers, subscribeToWallet, subscribeToTransactions } from './services/db';
+import { subscribeToMembers, subscribeToWallet, subscribeToTransactions, subscribeToReports } from './services/db';
 import { useAppStore } from './store/useAppStore';
 
 // Lazy load screens for performance
@@ -15,8 +15,8 @@ const ManageMembers = React.lazy(() => import('./pages/ManageMembers'));
 const Login = React.lazy(() => import('./pages/Login'));
 const LaunchScreen = React.lazy(() => import('./pages/LaunchScreen'));
 
-const App: React.FC = () => {
-  const { setMembers, setWallet, setTransactions, familyId } = useAppStore();
+  const App: React.FC = () => {
+  const { setMembers, setWallet, setTransactions, setReports, familyId } = useAppStore();
 
   React.useEffect(() => {
     if (!familyId) return;
@@ -25,13 +25,15 @@ const App: React.FC = () => {
     const unsubMembers = subscribeToMembers(familyId, (data) => setMembers(data));
     const unsubWallet = subscribeToWallet(familyId, (data) => setWallet(data));
     const unsubTxs = subscribeToTransactions(familyId, (data) => setTransactions(data));
+    const unsubReports = subscribeToReports(familyId, (data) => setReports(data));
 
     return () => {
       unsubMembers();
       unsubWallet();
       unsubTxs();
+      unsubReports();
     };
-  }, [familyId, setMembers, setWallet, setTransactions]);
+  }, [familyId, setMembers, setWallet, setTransactions, setReports]);
 
   if (!familyId) {
     return (

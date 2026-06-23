@@ -10,10 +10,11 @@ import {
   updateDoc,
   getDocs,
   setDoc,
-  where
+  where,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Transaction, Wallet, Member } from '../types';
+import { Transaction, Wallet, Member, Report } from '../types';
 
 // Dynamic collection getters for Multi-Tenant Architecture
 export const getFamilyRef = (familyId: string) => doc(db, 'families', familyId);
@@ -21,6 +22,7 @@ export const getMembersRef = (familyId: string) => collection(db, 'families', fa
 export const getTransactionsRef = (familyId: string) => collection(db, 'families', familyId, 'transactions');
 export const getWalletRef = (familyId: string) => doc(db, 'families', familyId, 'wallet', 'main');
 export const getFamilySettingsRef = (familyId: string) => doc(db, 'families', familyId, 'settings', 'main');
+export const getReportsRef = (familyId: string) => collection(db, 'families', familyId, 'reports');
 
 // ==========================================
 // AUTHENTICATION
@@ -99,6 +101,17 @@ export const subscribeToMembers = (familyId: string, callback: (members: Member[
       members.push({ id: doc.id, ...doc.data() } as Member);
     });
     callback(members);
+  });
+};
+
+export const subscribeToReports = (familyId: string, callback: (reports: Report[]) => void) => {
+  const q = query(getReportsRef(familyId), orderBy('createdAt', 'desc'));
+  return onSnapshot(q, (snapshot) => {
+    const reports: Report[] = [];
+    snapshot.forEach((doc) => {
+      reports.push({ id: doc.id, ...doc.data() } as Report);
+    });
+    callback(reports);
   });
 };
 
@@ -277,5 +290,55 @@ export const editTransaction = async (familyId: string, transactionId: string, u
   } catch (error) {
     console.error("Edit transaction failed: ", error);
     return false;
+  }
+};
+
+export const resetBalanceAndArchive = async (familyId: string) => {
+  try {
+    const txSnapshot = await getDocs(getTransactionsRef(familyId));
+    if (txSnapshot.empty) {
+      return { success: false, error: 'No transactions to archive.' };
+    }
+    
+    const transactions: Transaction[] = [];
+    txSnapshot.forEach(doc => {
+      transactions.push({ id: doc.id, ...doc.data() } as Transaction);
+    });
+    
+    transactions.sort((a, b) => a.timestamp - b.timestamp);
+    
+    const totalAdded = transactions.filter(t => t.transactionType === 'Add').reduce((acc, t) => acc + t.amount, 0);
+    const totalSpent = transactions.filter(t => t.transactionType === 'Withdraw').reduce((acc, t) => acc + t.amount, 0);
+    
+    const now = new Date();
+    const monthYear = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+    
+    const newReportRef = doc(getReportsRef(familyId));
+    const reportData: Omit<Report, 'id'> = {
+      monthYear,
+      totalAdded,
+      totalSpent,
+      transactions,
+      createdAt: now.getTime()
+    };
+    
+    const batch = writeBatch(db);
+    batch.set(newReportRef, reportData);
+    
+    txSnapshot.docs.forEach(docSnap => {
+      batch.delete(docSnap.ref);
+    });
+    
+    const walletRef = getWalletRef(familyId);
+    batch.update(walletRef, {
+      currentBalance: 0,
+      lastUpdated: now.getTime()
+    });
+    
+    await batch.commit();
+    return { success: true };
+  } catch (error) {
+    console.error("Reset balance failed:", error);
+    return { success: false, error: 'Failed to reset balance and archive report.' };
   }
 };

@@ -26,6 +26,15 @@ export interface Wallet {
   lastUpdated: number;
 }
 
+export interface Report {
+  id: string;
+  monthYear: string;
+  totalAdded: number;
+  totalSpent: number;
+  transactions: Transaction[];
+  createdAt: number;
+}
+
 export interface AuditLog {
   id: string;
   transactionId?: string;
