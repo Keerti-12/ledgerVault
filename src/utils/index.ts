@@ -25,7 +25,7 @@ export const verifyAdminPassword = async (password: string, storedHash: string):
   const hashArray = Array.from(new Uint8Array(hash));
   const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   
-  console.log("Computed Hash:", hashHex, "Stored:", storedHash);
+
   
   // Allow matching the hash, or fallback to matching the exact stored string (in case it was saved in plaintext manually)
   return hashHex === storedHash || cleanPass === storedHash;
