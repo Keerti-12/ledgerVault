@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/useAppStore';
 import { formatCurrency } from '../utils';
 import { Card } from '../components/Card';
-import { PlusCircle, MinusCircle, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { PlusCircle, MinusCircle, ArrowUpRight, ArrowDownRight, Clock } from 'lucide-react';
 import { processRecurringTransactions } from '../services/db';
 
 export default function Dashboard() {
@@ -76,25 +76,35 @@ export default function Dashboard() {
       </Card>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-3">
         <button 
           onClick={() => navigate('/add-cash')}
-          className="flex flex-col items-center justify-center bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 transition-all group"
+          className="flex flex-col items-center justify-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 transition-all group"
         >
-          <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-            <PlusCircle size={24} />
+          <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <PlusCircle size={20} />
           </div>
-          <span className="font-semibold text-slate-800">Add Cash</span>
+          <span className="font-semibold text-slate-800 text-[13px]">Add Cash</span>
         </button>
 
         <button 
           onClick={() => navigate('/withdraw-cash')}
-          className="flex flex-col items-center justify-center bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:border-rose-200 hover:bg-rose-50 transition-all group"
+          className="flex flex-col items-center justify-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:border-rose-200 hover:bg-rose-50 transition-all group"
         >
-          <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-            <MinusCircle size={24} />
+          <div className="w-10 h-10 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <MinusCircle size={20} />
           </div>
-          <span className="font-semibold text-slate-800">Withdraw</span>
+          <span className="font-semibold text-slate-800 text-[13px]">Withdraw</span>
+        </button>
+
+        <button 
+          onClick={() => navigate('/auto-entries')}
+          className="flex flex-col items-center justify-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:border-indigo-200 hover:bg-indigo-50 transition-all group"
+        >
+          <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+            <Clock size={20} />
+          </div>
+          <span className="font-semibold text-slate-800 text-[13px]">Auto Entries</span>
         </button>
       </div>
 
