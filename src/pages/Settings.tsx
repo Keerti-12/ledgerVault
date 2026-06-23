@@ -79,12 +79,14 @@ export default function Settings() {
               <span className="font-semibold text-rose-600">Reset Balance & Generate Report</span>
             </div>
           </div>
-          <div className="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => handleAdminActionClick('clear_history')}>
-            <div className="flex items-center text-slate-700">
-              <Trash2 size={20} className="mr-3 text-rose-400" />
-              <span className="font-semibold text-rose-600">Clear Transaction History</span>
+          {isAdminAuthenticated && (
+            <div className="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => handleAdminActionClick('clear_history')}>
+              <div className="flex items-center text-slate-700">
+                <Trash2 size={20} className="mr-3 text-rose-400" />
+                <span className="font-semibold text-rose-600">Clear Transaction History</span>
+              </div>
             </div>
-          </div>
+          )}
         </Card>
       </div>
 

@@ -368,7 +368,6 @@ export const clearTransactionHistory = async (familyId: string) => {
     
     const walletRef = getWalletRef(familyId);
     batch.update(walletRef, {
-      currentBalance: 0,
       lastUpdated: Date.now()
     });
     
