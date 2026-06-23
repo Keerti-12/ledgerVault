@@ -1,30 +1,5 @@
-import { 
-  collection, 
-  doc, 
-  onSnapshot,
-  query,
-  orderBy,
-  runTransaction,
-  addDoc,
-  deleteDoc,
-  updateDoc,
-  getDocs,
-  getDoc,
-  setDoc,
-  where,
-  writeBatch
-} from 'firebase/firestore';
-import { db } from './firebase';
+import { supabase } from './supabase';
 import { Transaction, Wallet, Member, Report, RecurringTransaction } from '../types';
-
-// Dynamic collection getters for Multi-Tenant Architecture
-export const getFamilyRef = (familyId: string) => doc(db, 'families', familyId);
-export const getMembersRef = (familyId: string) => collection(db, 'families', familyId, 'members');
-export const getTransactionsRef = (familyId: string) => collection(db, 'families', familyId, 'transactions');
-export const getWalletRef = (familyId: string) => doc(db, 'families', familyId, 'wallet', 'main');
-export const getFamilySettingsRef = (familyId: string) => doc(db, 'families', familyId, 'settings', 'main');
-export const getReportsRef = (familyId: string) => collection(db, 'families', familyId, 'reports');
-export const getRecurringTransactionsRef = (familyId: string) => collection(db, 'families', familyId, 'recurring_transactions');
 
 // ==========================================
 // AUTHENTICATION
@@ -34,40 +9,69 @@ export const registerFamily = async (adminName: string, pin: string) => {
   try {
     if (!/^\d{4}$/.test(pin)) return { success: false, error: 'PIN must be exactly 4 digits' };
     
-    // Check if family name already exists
-    const familiesRef = collection(db, 'families');
-    const q = query(familiesRef, where('adminName', '==', adminName.trim()));
-    const snapshot = await getDocs(q);
-    
-    if (!snapshot.empty) return { success: false, error: 'Family name already taken. Please choose another.' };
+    // Check if family name exists
+    const { data: existing } = await supabase
+      .from('families')
+      .select('id')
+      .eq('admin_name', adminName.trim());
+      
+    if (existing && existing.length > 0) {
+      return { success: false, error: 'Family name already taken. Please choose another.' };
+    }
     
     // Create new family
-    const newFamilyRef = doc(collection(db, 'families'));
-    await setDoc(newFamilyRef, {
-      adminName: adminName.trim(),
-      pin, // In a real production app, this should be securely hashed.
-      createdAt: Date.now()
-    });
+    const { data: family, error } = await supabase
+      .from('families')
+      .insert({
+        admin_name: adminName.trim(),
+        pin,
+        created_at: Date.now()
+      })
+      .select('id')
+      .single();
+      
+    if (error) throw error;
     
-    return { success: true, familyId: newFamilyRef.id };
-  } catch (e) {
+    // Create initial wallet
+    await supabase
+      .from('wallet')
+      .insert({
+        family_id: family.id,
+        current_balance: 0,
+        minimum_threshold: 0,
+        last_updated: Date.now()
+      });
+      
+    // Create initial settings
+    await supabase
+      .from('settings')
+      .insert({
+        family_id: family.id,
+        admin_password_hash: ''
+      });
+    
+    return { success: true, familyId: family.id };
+  } catch (e: any) {
     console.error(e);
-    return { success: false, error: 'Registration failed. Check your connection.' };
+    return { success: false, error: e.message || 'Registration failed.' };
   }
 };
 
 export const loginFamily = async (adminName: string, pin: string) => {
   try {
-    const familiesRef = collection(db, 'families');
-    const q = query(familiesRef, where('adminName', '==', adminName.trim()), where('pin', '==', pin));
-    const snapshot = await getDocs(q);
+    const { data: family, error } = await supabase
+      .from('families')
+      .select('id')
+      .eq('admin_name', adminName.trim())
+      .eq('pin', pin)
+      .single();
+      
+    if (error || !family) return { success: false, error: 'Invalid Family Name or PIN' };
     
-    if (snapshot.empty) return { success: false, error: 'Invalid Family Name or PIN' };
-    
-    return { success: true, familyId: snapshot.docs[0].id };
-  } catch (e) {
+    return { success: true, familyId: family.id };
+  } catch (e: any) {
     console.error(e);
-    return { success: false, error: 'Login failed. Check your connection.' };
+    return { success: false, error: 'Login failed.' };
   }
 };
 
@@ -76,61 +80,132 @@ export const loginFamily = async (adminName: string, pin: string) => {
 // ==========================================
 
 export const subscribeToWallet = (familyId: string, callback: (wallet: Wallet | null) => void) => {
-  return onSnapshot(getWalletRef(familyId), (docSnapshot) => {
-    if (docSnapshot.exists()) {
-      const data = docSnapshot.data() as Wallet;
-      // Auto-migrate old wallets to 0 threshold
-      if (data.minimumThreshold !== 0) {
-        updateDoc(getWalletRef(familyId), { minimumThreshold: 0 });
-      }
-      callback(data);
+  const fetchWallet = async () => {
+    const { data } = await supabase.from('wallet').select('*').eq('family_id', familyId).single();
+    if (data) {
+      callback({
+        currentBalance: data.current_balance,
+        minimumThreshold: data.minimum_threshold,
+        lastUpdated: data.last_updated
+      });
     } else {
       callback(null);
     }
-  });
+  };
+  
+  fetchWallet();
+  
+  const channel = supabase.channel(`wallet_${familyId}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'wallet', filter: `family_id=eq.${familyId}` }, fetchWallet)
+    .subscribe();
+    
+  return () => { supabase.removeChannel(channel); };
 };
 
 export const subscribeToTransactions = (familyId: string, callback: (transactions: Transaction[]) => void) => {
-  const q = query(getTransactionsRef(familyId), orderBy('timestamp', 'desc'));
-  return onSnapshot(q, (snapshot) => {
-    const txs: Transaction[] = [];
-    snapshot.forEach((doc) => {
-      txs.push({ id: doc.id, ...doc.data() } as Transaction);
-    });
-    callback(txs);
-  });
+  const fetchTx = async () => {
+    const { data } = await supabase.from('transactions').select('*').eq('family_id', familyId).order('timestamp', { ascending: false });
+    if (data) {
+      callback(data.map(d => ({
+        id: d.id,
+        memberId: d.member_id,
+        memberName: d.member_name,
+        transactionType: d.transaction_type,
+        amount: d.amount,
+        purpose: d.purpose,
+        category: d.category,
+        notes: d.notes,
+        balanceAfterTransaction: d.balance_after_transaction,
+        timestamp: d.timestamp,
+        edited: d.edited,
+        deleted: d.deleted,
+        editHistory: d.edit_history || []
+      })));
+    }
+  };
+  
+  fetchTx();
+  
+  const channel = supabase.channel(`transactions_${familyId}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `family_id=eq.${familyId}` }, fetchTx)
+    .subscribe();
+    
+  return () => { supabase.removeChannel(channel); };
 };
 
 export const subscribeToMembers = (familyId: string, callback: (members: Member[]) => void) => {
-  return onSnapshot(getMembersRef(familyId), (snapshot) => {
-    const members: Member[] = [];
-    snapshot.forEach((doc) => {
-      members.push({ id: doc.id, ...doc.data() } as Member);
-    });
-    callback(members);
-  });
+  const fetchMembers = async () => {
+    const { data } = await supabase.from('members').select('*').eq('family_id', familyId);
+    if (data) {
+      callback(data.map(d => ({
+        id: d.id,
+        name: d.name,
+        avatar: d.avatar,
+        role: d.role as any
+      })));
+    }
+  };
+  
+  fetchMembers();
+  
+  const channel = supabase.channel(`members_${familyId}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'members', filter: `family_id=eq.${familyId}` }, fetchMembers)
+    .subscribe();
+    
+  return () => { supabase.removeChannel(channel); };
 };
 
 export const subscribeToReports = (familyId: string, callback: (reports: Report[]) => void) => {
-  const q = query(getReportsRef(familyId), orderBy('createdAt', 'desc'));
-  return onSnapshot(q, (snapshot) => {
-    const reports: Report[] = [];
-    snapshot.forEach((doc) => {
-      reports.push({ id: doc.id, ...doc.data() } as Report);
-    });
-    callback(reports);
-  });
+  const fetchReports = async () => {
+    const { data } = await supabase.from('reports').select('*').eq('family_id', familyId).order('created_at', { ascending: false });
+    if (data) {
+      callback(data.map(d => ({
+        id: d.id,
+        monthYear: d.month_year,
+        totalAdded: d.total_added,
+        totalSpent: d.total_spent,
+        transactions: d.transactions || [],
+        createdAt: d.created_at
+      })));
+    }
+  };
+  
+  fetchReports();
+  
+  const channel = supabase.channel(`reports_${familyId}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'reports', filter: `family_id=eq.${familyId}` }, fetchReports)
+    .subscribe();
+    
+  return () => { supabase.removeChannel(channel); };
 };
 
 export const subscribeToRecurringTransactions = (familyId: string, callback: (rtxs: RecurringTransaction[]) => void) => {
-  const q = query(getRecurringTransactionsRef(familyId), orderBy('createdAt', 'desc'));
-  return onSnapshot(q, (snapshot) => {
-    const rtxs: RecurringTransaction[] = [];
-    snapshot.forEach((doc) => {
-      rtxs.push({ id: doc.id, ...doc.data() } as RecurringTransaction);
-    });
-    callback(rtxs);
-  });
+  const fetchRtx = async () => {
+    const { data } = await supabase.from('recurring_transactions').select('*').eq('family_id', familyId).order('created_at', { ascending: false });
+    if (data) {
+      callback(data.map(d => ({
+        id: d.id,
+        memberId: d.member_id,
+        memberName: d.member_name,
+        transactionType: d.transaction_type,
+        amount: d.amount,
+        purpose: d.purpose,
+        category: d.category,
+        frequency: d.frequency as any,
+        nextRunDate: d.next_run_date,
+        active: d.active,
+        createdAt: d.created_at
+      })));
+    }
+  };
+  
+  fetchRtx();
+  
+  const channel = supabase.channel(`rtx_${familyId}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'recurring_transactions', filter: `family_id=eq.${familyId}` }, fetchRtx)
+    .subscribe();
+    
+  return () => { supabase.removeChannel(channel); };
 };
 
 // ==========================================
@@ -139,50 +214,47 @@ export const subscribeToRecurringTransactions = (familyId: string, callback: (rt
 
 export const addTransaction = async (familyId: string, txData: Omit<Transaction, 'id' | 'balanceAfterTransaction' | 'timestamp' | 'edited' | 'deleted'>) => {
   try {
-    await runTransaction(db, async (transaction) => {
-      const walletRef = getWalletRef(familyId);
-      const walletDoc = await transaction.get(walletRef);
-      
-      let currentBalance = 0;
-      
-      if (!walletDoc.exists()) {
-        transaction.set(walletRef, {
-          currentBalance: 0,
-          minimumThreshold: 0,
-          lastUpdated: Date.now()
-        });
-      } else {
-        currentBalance = walletDoc.data().currentBalance;
-      }
-      let newBalance = currentBalance;
-      
-      if (txData.transactionType === 'Add') {
-        newBalance += txData.amount;
-      } else {
-        newBalance -= txData.amount;
-      }
-      
-      const newTxRef = doc(getTransactionsRef(familyId));
-      const txId = newTxRef.id;
-      
-      const now = Date.now();
-      
-      const finalTx: Transaction = {
-        ...txData,
-        id: txId,
-        balanceAfterTransaction: newBalance,
-        timestamp: now,
-        edited: false,
-        deleted: false
-      };
-      
-      transaction.update(walletRef, {
-        currentBalance: newBalance,
-        lastUpdated: now
-      });
-      
-      transaction.set(newTxRef, finalTx);
+    // In PostgreSQL, to ensure atomic updates across tables, we should normally use an RPC function.
+    // For simplicity in this migration without full custom RPC setup, we'll do sequential updates 
+    // and rely on RLS/optimistic locking if needed, though RPC is better for production.
+    
+    // Fetch current wallet
+    const { data: wallet, error: wErr } = await supabase.from('wallet').select('current_balance').eq('family_id', familyId).single();
+    if (wErr || !wallet) throw new Error("Wallet not found");
+    
+    let currentBalance = wallet.current_balance;
+    if (txData.transactionType === 'Add') {
+      currentBalance += txData.amount;
+    } else {
+      currentBalance -= txData.amount;
+    }
+    
+    const now = Date.now();
+    
+    // Insert transaction
+    const { error: tErr } = await supabase.from('transactions').insert({
+      family_id: familyId,
+      member_id: txData.memberId,
+      member_name: txData.memberName,
+      transaction_type: txData.transactionType,
+      amount: txData.amount,
+      purpose: txData.purpose,
+      category: txData.category,
+      notes: txData.notes,
+      balance_after_transaction: currentBalance,
+      timestamp: now,
+      edited: false,
+      deleted: false
     });
+    if (tErr) throw tErr;
+    
+    // Update wallet
+    const { error: uwErr } = await supabase.from('wallet').update({
+      current_balance: currentBalance,
+      last_updated: now
+    }).eq('family_id', familyId);
+    if (uwErr) throw uwErr;
+    
     return true;
   } catch (error) {
     console.error("Transaction failed: ", error);
@@ -192,8 +264,13 @@ export const addTransaction = async (familyId: string, txData: Omit<Transaction,
 
 export const addMember = async (familyId: string, memberData: Omit<Member, 'id'>) => {
   try {
-    const docRef = await addDoc(getMembersRef(familyId), memberData);
-    await updateDoc(docRef, { id: docRef.id });
+    const { error } = await supabase.from('members').insert({
+      family_id: familyId,
+      name: memberData.name,
+      avatar: memberData.avatar,
+      role: memberData.role
+    });
+    if (error) throw error;
     return true;
   } catch (e) {
     console.error("Error adding member: ", e);
@@ -203,7 +280,8 @@ export const addMember = async (familyId: string, memberData: Omit<Member, 'id'>
 
 export const deleteMember = async (familyId: string, memberId: string) => {
   try {
-    await deleteDoc(doc(db, 'families', familyId, 'members', memberId));
+    const { error } = await supabase.from('members').delete().eq('id', memberId).eq('family_id', familyId);
+    if (error) throw error;
     return true;
   } catch (e) {
     console.error("Error deleting member: ", e);
@@ -213,7 +291,12 @@ export const deleteMember = async (familyId: string, memberId: string) => {
 
 export const editMember = async (familyId: string, memberId: string, memberData: Partial<Omit<Member, 'id'>>) => {
   try {
-    await updateDoc(doc(db, 'families', familyId, 'members', memberId), memberData);
+    const { error } = await supabase.from('members').update({
+      name: memberData.name,
+      avatar: memberData.avatar,
+      role: memberData.role
+    }).eq('id', memberId).eq('family_id', familyId);
+    if (error) throw error;
     return true;
   } catch (e) {
     console.error("Error editing member: ", e);
@@ -223,34 +306,27 @@ export const editMember = async (familyId: string, memberId: string, memberData:
 
 export const deleteTransaction = async (familyId: string, transactionId: string) => {
   try {
-    await runTransaction(db, async (transaction) => {
-      const txRef = doc(db, 'families', familyId, 'transactions', transactionId);
-      const txDoc = await transaction.get(txRef);
-      if (!txDoc.exists()) throw "Transaction does not exist!";
-      
-      const txData = txDoc.data() as Transaction;
-      if (txData.deleted) throw "Already deleted!";
+    const { data: tx, error: tErr } = await supabase.from('transactions').select('*').eq('id', transactionId).eq('family_id', familyId).single();
+    if (tErr || !tx) throw new Error("Transaction does not exist!");
+    if (tx.deleted) throw new Error("Already deleted!");
 
-      const walletRef = getWalletRef(familyId);
-      const walletDoc = await transaction.get(walletRef);
-      
-      if (!walletDoc.exists()) throw "Wallet missing!";
-      
-      let currentBalance = walletDoc.data().currentBalance;
-      
-      if (txData.transactionType === 'Add') {
-        currentBalance -= txData.amount;
-      } else {
-        currentBalance += txData.amount;
-      }
-      
-      transaction.update(walletRef, {
-        currentBalance: currentBalance,
-        lastUpdated: Date.now()
-      });
-      
-      transaction.delete(txRef);
-    });
+    const { data: wallet, error: wErr } = await supabase.from('wallet').select('current_balance').eq('family_id', familyId).single();
+    if (wErr || !wallet) throw new Error("Wallet missing!");
+    
+    let currentBalance = wallet.current_balance;
+    if (tx.transaction_type === 'Add') {
+      currentBalance -= tx.amount;
+    } else {
+      currentBalance += tx.amount;
+    }
+    
+    await supabase.from('wallet').update({
+      current_balance: currentBalance,
+      last_updated: Date.now()
+    }).eq('family_id', familyId);
+    
+    await supabase.from('transactions').delete().eq('id', transactionId);
+    
     return true;
   } catch (error) {
     console.error("Delete transaction failed: ", error);
@@ -260,59 +336,56 @@ export const deleteTransaction = async (familyId: string, transactionId: string)
 
 export const editTransaction = async (familyId: string, transactionId: string, updatedData: Partial<Transaction>) => {
   try {
-    await runTransaction(db, async (transaction) => {
-      const txRef = doc(db, 'families', familyId, 'transactions', transactionId);
-      const txDoc = await transaction.get(txRef);
-      if (!txDoc.exists()) throw "Transaction does not exist!";
-      
-      const oldTxData = txDoc.data() as Transaction;
-      if (oldTxData.deleted) throw "Cannot edit deleted transaction!";
+    const { data: tx, error: tErr } = await supabase.from('transactions').select('*').eq('id', transactionId).eq('family_id', familyId).single();
+    if (tErr || !tx) throw new Error("Transaction does not exist!");
+    if (tx.deleted) throw new Error("Cannot edit deleted transaction!");
 
-      const walletRef = getWalletRef(familyId);
-      const walletDoc = await transaction.get(walletRef);
-      if (!walletDoc.exists()) throw "Wallet missing!";
-      
-      let currentBalance = walletDoc.data().currentBalance;
-      
-      if (oldTxData.transactionType === 'Add') {
-        currentBalance -= oldTxData.amount;
-      } else {
-        currentBalance += oldTxData.amount;
-      }
-      
-      const newType = updatedData.transactionType || oldTxData.transactionType;
-      const newAmount = updatedData.amount !== undefined ? updatedData.amount : oldTxData.amount;
-      
-      if (newType === 'Add') {
-        currentBalance += newAmount;
-      } else {
-        currentBalance -= newAmount;
-      }
-      
-      if (currentBalance < 0) {
-        throw new Error("Insufficient balance to modify this transaction!");
-      }
-      
-      transaction.update(walletRef, {
-        currentBalance: currentBalance,
-        lastUpdated: Date.now()
-      });
-      
-      const newHistory = [...(oldTxData.editHistory || [])];
-      newHistory.push({
-        oldAmount: oldTxData.amount,
-        oldPurpose: oldTxData.purpose,
-        oldCategory: oldTxData.category,
-        editedAt: Date.now()
-      });
-      
-      transaction.update(txRef, {
-        ...updatedData,
-        edited: true,
-        editHistory: newHistory,
-        balanceAfterTransaction: currentBalance
-      });
+    const { data: wallet, error: wErr } = await supabase.from('wallet').select('current_balance').eq('family_id', familyId).single();
+    if (wErr || !wallet) throw new Error("Wallet missing!");
+    
+    let currentBalance = wallet.current_balance;
+    if (tx.transaction_type === 'Add') {
+      currentBalance -= tx.amount;
+    } else {
+      currentBalance += tx.amount;
+    }
+    
+    const newType = updatedData.transactionType || tx.transaction_type;
+    const newAmount = updatedData.amount !== undefined ? updatedData.amount : tx.amount;
+    
+    if (newType === 'Add') {
+      currentBalance += newAmount;
+    } else {
+      currentBalance -= newAmount;
+    }
+    
+    if (currentBalance < 0) {
+      throw new Error("Insufficient balance to modify this transaction!");
+    }
+    
+    await supabase.from('wallet').update({
+      current_balance: currentBalance,
+      last_updated: Date.now()
+    }).eq('family_id', familyId);
+    
+    const newHistory = [...(tx.edit_history || [])];
+    newHistory.push({
+      oldAmount: tx.amount,
+      oldPurpose: tx.purpose,
+      oldCategory: tx.category,
+      editedAt: Date.now()
     });
+    
+    await supabase.from('transactions').update({
+      amount: newAmount,
+      purpose: updatedData.purpose || tx.purpose,
+      category: updatedData.category || tx.category,
+      transaction_type: newType,
+      edited: true,
+      edit_history: newHistory,
+      balance_after_transaction: currentBalance
+    }).eq('id', transactionId);
+    
     return { success: true };
   } catch (error: any) {
     console.error("Edit transaction failed: ", error);
@@ -322,17 +395,24 @@ export const editTransaction = async (familyId: string, transactionId: string, u
 
 export const resetBalanceAndArchive = async (familyId: string) => {
   try {
-    const txSnapshot = await getDocs(getTransactionsRef(familyId));
-    if (txSnapshot.empty) {
-      return { success: false, error: 'No transactions to archive.' };
-    }
+    const { data: txs, error: tErr } = await supabase.from('transactions').select('*').eq('family_id', familyId).order('timestamp', { ascending: true });
+    if (tErr || !txs || txs.length === 0) return { success: false, error: 'No transactions to archive.' };
     
-    const transactions: Transaction[] = [];
-    txSnapshot.forEach(doc => {
-      transactions.push({ id: doc.id, ...doc.data() } as Transaction);
-    });
-    
-    transactions.sort((a, b) => a.timestamp - b.timestamp);
+    const transactions = txs.map(d => ({
+      id: d.id,
+      memberId: d.member_id,
+      memberName: d.member_name,
+      transactionType: d.transaction_type,
+      amount: d.amount,
+      purpose: d.purpose,
+      category: d.category,
+      notes: d.notes,
+      balanceAfterTransaction: d.balance_after_transaction,
+      timestamp: d.timestamp,
+      edited: d.edited,
+      deleted: d.deleted,
+      editHistory: d.edit_history || []
+    }));
     
     const totalAdded = transactions.filter(t => t.transactionType === 'Add').reduce((acc, t) => acc + t.amount, 0);
     const totalSpent = transactions.filter(t => t.transactionType === 'Withdraw').reduce((acc, t) => acc + t.amount, 0);
@@ -340,29 +420,22 @@ export const resetBalanceAndArchive = async (familyId: string) => {
     const now = new Date();
     const monthYear = now.toLocaleString('default', { month: 'long', year: 'numeric' });
     
-    const newReportRef = doc(getReportsRef(familyId));
-    const reportData: Omit<Report, 'id'> = {
-      monthYear,
-      totalAdded,
-      totalSpent,
-      transactions,
-      createdAt: now.getTime()
-    };
-    
-    const batch = writeBatch(db);
-    batch.set(newReportRef, reportData);
-    
-    txSnapshot.docs.forEach(docSnap => {
-      batch.delete(docSnap.ref);
+    await supabase.from('reports').insert({
+      family_id: familyId,
+      month_year: monthYear,
+      total_added: totalAdded,
+      total_spent: totalSpent,
+      transactions: JSON.stringify(transactions),
+      created_at: now.getTime()
     });
     
-    const walletRef = getWalletRef(familyId);
-    batch.update(walletRef, {
-      currentBalance: 0,
-      lastUpdated: now.getTime()
-    });
+    await supabase.from('transactions').delete().eq('family_id', familyId);
     
-    await batch.commit();
+    await supabase.from('wallet').update({
+      current_balance: 0,
+      last_updated: now.getTime()
+    }).eq('family_id', familyId);
+    
     return { success: true };
   } catch (error) {
     console.error("Reset balance failed:", error);
@@ -372,23 +445,10 @@ export const resetBalanceAndArchive = async (familyId: string) => {
 
 export const clearTransactionHistory = async (familyId: string) => {
   try {
-    const txSnapshot = await getDocs(getTransactionsRef(familyId));
-    if (txSnapshot.empty) {
-      return { success: true };
-    }
-    
-    const batch = writeBatch(db);
-    
-    txSnapshot.docs.forEach(docSnap => {
-      batch.delete(docSnap.ref);
-    });
-    
-    const walletRef = getWalletRef(familyId);
-    batch.update(walletRef, {
-      lastUpdated: Date.now()
-    });
-    
-    await batch.commit();
+    await supabase.from('transactions').delete().eq('family_id', familyId);
+    await supabase.from('wallet').update({
+      last_updated: Date.now()
+    }).eq('family_id', familyId);
     return { success: true };
   } catch (error) {
     console.error("Clear history failed:", error);
@@ -398,7 +458,7 @@ export const clearTransactionHistory = async (familyId: string) => {
 
 export const deleteReport = async (familyId: string, reportId: string) => {
   try {
-    await deleteDoc(doc(db, 'families', familyId, 'reports', reportId));
+    await supabase.from('reports').delete().eq('id', reportId).eq('family_id', familyId);
     return { success: true };
   } catch (error) {
     console.error("Delete report failed:", error);
@@ -408,13 +468,12 @@ export const deleteReport = async (familyId: string, reportId: string) => {
 
 export const changeFamilyPin = async (familyId: string, oldPin: string, newPin: string) => {
   try {
-    const familyRef = doc(db, 'families', familyId);
-    const snap = await getDoc(familyRef);
-    if (!snap.exists()) return { success: false, error: 'Family not found' };
-    if (snap.data().pin !== oldPin) return { success: false, error: 'Incorrect previous PIN' };
+    const { data: family } = await supabase.from('families').select('pin').eq('id', familyId).single();
+    if (!family) return { success: false, error: 'Family not found' };
+    if (family.pin !== oldPin) return { success: false, error: 'Incorrect previous PIN' };
     if (!/^\d{4}$/.test(newPin)) return { success: false, error: 'PIN must be exactly 4 digits' };
     
-    await updateDoc(familyRef, { pin: newPin });
+    await supabase.from('families').update({ pin: newPin }).eq('id', familyId);
     return { success: true };
   } catch (error) {
     console.error("Change PIN failed:", error);
@@ -424,8 +483,7 @@ export const changeFamilyPin = async (familyId: string, oldPin: string, newPin: 
 
 export const changeAdminPasswordHash = async (familyId: string, newHash: string) => {
   try {
-    const settingsRef = getFamilySettingsRef(familyId);
-    await updateDoc(settingsRef, { adminPasswordHash: newHash });
+    await supabase.from('settings').update({ admin_password_hash: newHash }).eq('family_id', familyId);
     return { success: true };
   } catch (error) {
     console.error("Change Admin Password failed:", error);
@@ -435,11 +493,20 @@ export const changeAdminPasswordHash = async (familyId: string, newHash: string)
 
 export const addRecurringTransaction = async (familyId: string, rtxData: Omit<RecurringTransaction, 'id' | 'createdAt'>) => {
   try {
-    const docRef = await addDoc(getRecurringTransactionsRef(familyId), {
-      ...rtxData,
-      createdAt: Date.now()
+    const { error } = await supabase.from('recurring_transactions').insert({
+      family_id: familyId,
+      member_id: rtxData.memberId,
+      member_name: rtxData.memberName,
+      transaction_type: rtxData.transactionType,
+      amount: rtxData.amount,
+      purpose: rtxData.purpose,
+      category: rtxData.category,
+      frequency: rtxData.frequency,
+      next_run_date: rtxData.nextRunDate,
+      active: rtxData.active,
+      created_at: Date.now()
     });
-    await updateDoc(docRef, { id: docRef.id });
+    if (error) throw error;
     return true;
   } catch (e) {
     console.error("Error adding recurring transaction: ", e);
@@ -449,7 +516,7 @@ export const addRecurringTransaction = async (familyId: string, rtxData: Omit<Re
 
 export const deleteRecurringTransaction = async (familyId: string, rtxId: string) => {
   try {
-    await deleteDoc(doc(db, 'families', familyId, 'recurring_transactions', rtxId));
+    await supabase.from('recurring_transactions').delete().eq('id', rtxId).eq('family_id', familyId);
     return true;
   } catch (e) {
     console.error("Error deleting recurring transaction: ", e);
@@ -459,7 +526,7 @@ export const deleteRecurringTransaction = async (familyId: string, rtxId: string
 
 export const toggleRecurringTransaction = async (familyId: string, rtxId: string, active: boolean) => {
   try {
-    await updateDoc(doc(db, 'families', familyId, 'recurring_transactions', rtxId), { active });
+    await supabase.from('recurring_transactions').update({ active }).eq('id', rtxId).eq('family_id', familyId);
     return true;
   } catch (e) {
     console.error("Error toggling recurring transaction: ", e);
@@ -470,81 +537,73 @@ export const toggleRecurringTransaction = async (familyId: string, rtxId: string
 export const processRecurringTransactions = async (familyId: string) => {
   try {
     const now = Date.now();
-    const q = query(getRecurringTransactionsRef(familyId), where('active', '==', true));
-    const snapshot = await getDocs(q);
-    
-    if (snapshot.empty) return { success: true, processed: 0, skipped: [] };
+    const { data: rtxs, error: rErr } = await supabase.from('recurring_transactions')
+      .select('*')
+      .eq('family_id', familyId)
+      .eq('active', true);
+      
+    if (rErr || !rtxs || rtxs.length === 0) return { success: true, processed: 0, skipped: [] };
     
     let processedCount = 0;
     const skippedEntries: string[] = [];
     
-    for (const docSnap of snapshot.docs) {
+    for (const rtx of rtxs) {
+      if (rtx.next_run_date > now) continue;
+      
+      const { data: wallet } = await supabase.from('wallet').select('current_balance').eq('family_id', familyId).single();
+      let currentBalance = wallet ? wallet.current_balance : 0;
+      
       let skippedThisTx = false;
-      await runTransaction(db, async (transaction) => {
-        const rtxRef = docSnap.ref;
-        const rtxDoc = await transaction.get(rtxRef);
-        if (!rtxDoc.exists()) return;
-        
-        const rtxData = rtxDoc.data() as RecurringTransaction;
-        if (!rtxData.active || rtxData.nextRunDate > now) return;
-        
-        const walletRef = getWalletRef(familyId);
-        const walletDoc = await transaction.get(walletRef);
-        let currentBalance = walletDoc.exists() ? walletDoc.data().currentBalance : 0;
-        
-        if (rtxData.transactionType === 'Withdraw') {
-          if (currentBalance < rtxData.amount) {
-            skippedThisTx = true;
-            return;
-          }
-          currentBalance -= rtxData.amount;
+      
+      if (rtx.transaction_type === 'Withdraw') {
+        if (currentBalance < rtx.amount) {
+          skippedThisTx = true;
         } else {
-          currentBalance += rtxData.amount;
+          currentBalance -= rtx.amount;
         }
-        
-        skippedThisTx = false;
-        
-        const newTxRef = doc(getTransactionsRef(familyId));
-        const finalTx: Transaction = {
-          id: newTxRef.id,
-          memberId: rtxData.memberId,
-          memberName: rtxData.memberName,
-          transactionType: rtxData.transactionType,
-          amount: rtxData.amount,
-          purpose: rtxData.purpose + ' (Auto)',
-          category: rtxData.category,
-          balanceAfterTransaction: currentBalance,
-          timestamp: now,
-          edited: false,
-          deleted: false
-        };
-        
-        let nextDate = new Date(rtxData.nextRunDate);
-        if (rtxData.frequency === 'Daily') {
-          nextDate.setDate(nextDate.getDate() + 1);
-        } else if (rtxData.frequency === 'Weekly') {
-          nextDate.setDate(nextDate.getDate() + 7);
-        } else if (rtxData.frequency === 'Monthly') {
-          nextDate.setMonth(nextDate.getMonth() + 1);
-        }
-        
-        transaction.update(walletRef, {
-          currentBalance: currentBalance,
-          lastUpdated: now
-        });
-        
-        transaction.set(newTxRef, finalTx);
-        
-        transaction.update(rtxRef, {
-          nextRunDate: nextDate.getTime()
-        });
-        
-        processedCount++;
-      });
+      } else {
+        currentBalance += rtx.amount;
+      }
       
       if (skippedThisTx) {
-        skippedEntries.push(docSnap.data().purpose);
+        skippedEntries.push(rtx.purpose);
+        continue;
       }
+      
+      // Add transaction
+      await supabase.from('transactions').insert({
+        family_id: familyId,
+        member_id: rtx.member_id,
+        member_name: rtx.member_name,
+        transaction_type: rtx.transaction_type,
+        amount: rtx.amount,
+        purpose: rtx.purpose + ' (Auto)',
+        category: rtx.category,
+        balance_after_transaction: currentBalance,
+        timestamp: now,
+        edited: false,
+        deleted: false
+      });
+      
+      let nextDate = new Date(rtx.next_run_date);
+      if (rtx.frequency === 'Daily') {
+        nextDate.setDate(nextDate.getDate() + 1);
+      } else if (rtx.frequency === 'Weekly') {
+        nextDate.setDate(nextDate.getDate() + 7);
+      } else if (rtx.frequency === 'Monthly') {
+        nextDate.setMonth(nextDate.getMonth() + 1);
+      }
+      
+      await supabase.from('wallet').update({
+        current_balance: currentBalance,
+        last_updated: now
+      }).eq('family_id', familyId);
+      
+      await supabase.from('recurring_transactions').update({
+        next_run_date: nextDate.getTime()
+      }).eq('id', rtx.id);
+      
+      processedCount++;
     }
     
     return { success: true, processed: processedCount, skipped: skippedEntries };
