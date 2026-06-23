@@ -4,7 +4,7 @@ import { useAppStore } from '../store/useAppStore';
 import { loginFamily, registerFamily } from '../services/db';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { ShieldCheck, UserPlus, LogIn, KeySquare } from 'lucide-react';
+import { UserPlus, LogIn, KeySquare } from 'lucide-react';
 
 export default function Login() {
   const [isLogin, setIsLogin] = useState(true);

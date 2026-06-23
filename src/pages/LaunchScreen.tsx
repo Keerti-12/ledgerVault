@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Member } from '../types';
 import { useAppStore } from '../store/useAppStore';
 import { Card } from '../components/Card';
-import { ShieldCheck, Users } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 
 export default function LaunchScreen() {
   const { setActiveMember, members, familyName } = useAppStore();
