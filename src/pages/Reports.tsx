@@ -3,16 +3,19 @@ import { useAppStore } from '../store/useAppStore';
 import { Card } from '../components/Card';
 import { formatCurrency } from '../utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
-import { Download } from 'lucide-react';
+import { Download, Trash2 } from 'lucide-react';
 // @ts-ignore
 import jsPDF from 'jspdf';
 // @ts-ignore
 import autoTable from 'jspdf-autotable';
+import { AdminAuthModal } from '../components/AdminAuthModal';
+import { deleteReport } from '../services/db';
 
 export default function Reports() {
-  const { transactions, reports } = useAppStore();
+  const { transactions, reports, familyId, isAdminAuthenticated } = useAppStore();
   const [activeTab, setActiveTab] = useState<'current' | 'past'>('current');
   const [selectedReportId, setSelectedReportId] = useState<string | null>(reports.length > 0 ? reports[0].id : null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const targetTransactions = useMemo(() => {
     if (activeTab === 'current') {
@@ -124,6 +127,37 @@ export default function Reports() {
     doc.save(`GharCash_Report_${reportMonthYear.replace(' ', '_')}.pdf`);
   };
 
+  const handleDeleteReport = () => {
+    if (isAdminAuthenticated) {
+      executeDelete();
+    } else {
+      setShowAuthModal(true);
+    }
+  };
+
+  const executeDelete = async () => {
+    if (!selectedReportId || !familyId) return;
+    if (window.confirm('Are you sure you want to permanently delete this report? This action cannot be undone.')) {
+      const res = await deleteReport(familyId, selectedReportId);
+      if (res.success) {
+        const remaining = reports.filter(r => r.id !== selectedReportId);
+        if (remaining.length > 0) {
+          setSelectedReportId(remaining[0].id);
+        } else {
+          setSelectedReportId(null);
+        }
+        alert('Report deleted successfully.');
+      } else {
+        alert(res.error || 'Failed to delete report.');
+      }
+    }
+  };
+
+  const handleAuthSuccess = () => {
+    setShowAuthModal(false);
+    executeDelete();
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className="flex items-center justify-between">
@@ -165,15 +199,24 @@ export default function Reports() {
       {activeTab === 'past' && reports.length > 0 && (
         <div className="mb-4">
           <label className="block text-sm font-medium text-slate-700 mb-2">Select Report Month</label>
-          <select
-            value={selectedReportId || ''}
-            onChange={(e) => setSelectedReportId(e.target.value)}
-            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-200"
-          >
-            {reports.map((r) => (
-              <option key={r.id} value={r.id}>{r.monthYear}</option>
-            ))}
-          </select>
+          <div className="flex gap-2">
+            <select
+              value={selectedReportId || ''}
+              onChange={(e) => setSelectedReportId(e.target.value)}
+              className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-200"
+            >
+              {reports.map((r) => (
+                <option key={r.id} value={r.id}>{r.monthYear}</option>
+              ))}
+            </select>
+            <button 
+              onClick={handleDeleteReport}
+              className="px-4 py-3 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-colors flex items-center justify-center border border-rose-100 shadow-sm"
+              title="Delete Report"
+            >
+              <Trash2 size={20} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -255,6 +298,12 @@ export default function Reports() {
       </Card>
         </>
       )}
+
+      <AdminAuthModal 
+        isOpen={showAuthModal} 
+        onClose={() => setShowAuthModal(false)} 
+        onSuccess={handleAuthSuccess} 
+      />
     </div>
   );
 }

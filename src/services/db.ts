@@ -382,3 +382,13 @@ export const clearTransactionHistory = async (familyId: string) => {
     return { success: false, error: 'Failed to clear transaction history.' };
   }
 };
+
+export const deleteReport = async (familyId: string, reportId: string) => {
+  try {
+    await deleteDoc(doc(db, 'families', familyId, 'reports', reportId));
+    return { success: true };
+  } catch (error) {
+    console.error("Delete report failed:", error);
+    return { success: false, error: 'Failed to delete report.' };
+  }
+};
