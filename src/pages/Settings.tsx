@@ -100,10 +100,18 @@ export default function Settings() {
           >
             <span className="font-semibold text-slate-700">Manage Family Members</span>
           </div>
-          {isAdminAuthenticated && (
+          {isAdminAuthenticated ? (
             <div className="py-3 flex justify-between items-center bg-emerald-50 mt-2 px-3 rounded-xl">
               <span className="text-sm text-emerald-700 font-semibold">Admin Mode Active</span>
-              <Button size="sm" variant="outline" onClick={() => setAdminAuthenticated(false)}>Logout</Button>
+              <Button size="sm" variant="outline" onClick={() => setAdminAuthenticated(false)}>Deactivate</Button>
+            </div>
+          ) : (
+            <div 
+              className="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors px-1"
+              onClick={() => { setAuthTarget(null); setShowAuthModal(true); }}
+            >
+              <span className="font-semibold text-slate-700">Enable Admin Mode</span>
+              <Button size="sm" variant="outline">Activate</Button>
             </div>
           )}
         </Card>
