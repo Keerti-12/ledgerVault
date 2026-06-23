@@ -85,7 +85,7 @@ export default function Reports() {
 
   const COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#f43f5e', '#8b5cf6', '#ec4899', '#64748b'];
 
-  const downloadPDF = () => {
+  const downloadPDF = async () => {
     const doc = new jsPDF();
     
     // Title
@@ -136,7 +136,28 @@ export default function Reports() {
       body: tableData,
     });
     
-    doc.save(`GharCash_Report_${reportMonthYear.replace(' ', '_')}.pdf`);
+    const fileName = `GharCash_Report_${reportMonthYear.replace(/ /g, '_')}.pdf`;
+    
+    // Attempt to use Web Share API for mobile devices
+    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && navigator.canShare) {
+      try {
+        const pdfBlob = doc.output('blob');
+        const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'GharCash Report',
+            text: 'Here is the monthly report from GharCash.'
+          });
+          return;
+        }
+      } catch (error) {
+        console.log("Error sharing:", error);
+      }
+    }
+    
+    // Fallback to standard save for desktop or if share fails
+    doc.save(fileName);
   };
 
   const handleDeleteReport = () => {
