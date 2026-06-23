@@ -3,7 +3,7 @@ import { useAppStore } from '../store/useAppStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { AdminAuthModal } from '../components/AdminAuthModal';
-import { ShieldCheck, User, Settings as SettingsIcon, LogOut, Trash2 } from 'lucide-react';
+import { ShieldCheck, LogOut, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { resetBalanceAndArchive, clearTransactionHistory } from '../services/db';
 

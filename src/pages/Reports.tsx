@@ -4,7 +4,9 @@ import { Card } from '../components/Card';
 import { formatCurrency } from '../utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
 import { Download } from 'lucide-react';
+// @ts-ignore
 import jsPDF from 'jspdf';
+// @ts-ignore
 import autoTable from 'jspdf-autotable';
 
 export default function Reports() {
@@ -109,7 +111,7 @@ export default function Reports() {
       tx.transactionType,
       tx.memberName,
       tx.category,
-      tx.description || '-',
+      tx.notes || '-',
       formatCurrency(tx.amount)
     ]);
 
@@ -119,7 +121,7 @@ export default function Reports() {
       body: tableData,
     });
     
-    doc.save(`LedgerVault_Report_${reportMonthYear.replace(' ', '_')}.pdf`);
+    doc.save(`GharCash_Report_${reportMonthYear.replace(' ', '_')}.pdf`);
   };
 
   return (

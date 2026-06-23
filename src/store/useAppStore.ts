@@ -58,7 +58,7 @@ export const useAppStore = create<AppState>()(
       setReports: (reports) => set({ reports }),
     }),
     {
-      name: 'ledgervault-session',
+      name: 'gharcash-session',
       partialize: (state) => ({
         familyId: state.familyId,
         familyName: state.familyName,

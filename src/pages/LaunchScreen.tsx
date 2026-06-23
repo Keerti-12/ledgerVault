@@ -18,14 +18,14 @@ export default function LaunchScreen() {
   return (
     <div className="flex flex-col min-h-screen max-w-md mx-auto bg-emerald-600 p-6">
       <div className="flex-1 flex flex-col items-center pt-16">
-        <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mb-6 shadow-lg rotate-3">
-          <Users size={40} className="text-emerald-600" />
+        <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center mb-6 shadow-xl p-3">
+          <img src="/logo.png" alt="GharCash Logo" className="w-full h-full object-contain" />
         </div>
         <h1 className="text-3xl font-bold text-white text-center mb-2">{familyName || 'Family'} Vault</h1>
         <p className="text-emerald-100 font-medium mb-12">Select your profile to continue.</p>
 
         <Card className="w-full bg-white/95 backdrop-blur shadow-2xl rounded-3xl p-6 border-0">
-          <h2 className="text-xl font-bold text-slate-800 text-center mb-6">Who is using LedgerVault?</h2>
+          <h2 className="text-xl font-bold text-slate-800 text-center mb-6">Who is using GharCash?</h2>
           
           <div className="grid grid-cols-2 gap-4">
             {displayMembers.map((member) => (

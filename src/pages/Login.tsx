@@ -58,10 +58,8 @@ export default function Login() {
       <div className="w-full max-w-md animate-in fade-in slide-in-from-bottom-4 duration-500">
         
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl mb-6 shadow-sm transform rotate-3">
-            <ShieldCheck size={40} />
-          </div>
-          <h1 className="text-4xl font-black text-slate-800 tracking-tight">LedgerVault</h1>
+          <img src="/logo.png" alt="GharCash Logo" className="w-24 h-24 mx-auto mb-4 object-contain drop-shadow-md" />
+          <h1 className="text-4xl font-black text-slate-800 tracking-tight">GharCash</h1>
           <p className="text-slate-500 font-medium mt-2">Secure Family Finance Tracker</p>
         </div>
 

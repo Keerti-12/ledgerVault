@@ -9,9 +9,12 @@ export const Layout: React.FC = () => {
       
       {/* Header */}
       <header className="bg-white px-5 py-4 flex items-center justify-between border-b border-slate-100 z-10 shrink-0">
-        <div className="flex flex-col">
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">LedgerVault</h1>
-          <span className="text-xs text-slate-500 font-medium tracking-wide">EVERY RUPEE ACCOUNTED FOR.</span>
+        <div className="flex items-center gap-3">
+          <img src="/logo.png" alt="GharCash Logo" className="w-8 h-8 object-contain" />
+          <div className="flex flex-col">
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">GharCash</h1>
+            <span className="text-xs text-slate-500 font-medium tracking-wide">EVERY RUPEE. EVERY ENTRY. EVERY TIME.</span>
+          </div>
         </div>
         
         </header>
