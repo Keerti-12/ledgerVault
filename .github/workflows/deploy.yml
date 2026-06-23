@@ -14,38 +14,43 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build web app
-        run: npm run build
-
-      - name: Capacitor Sync
-        run: npx cap sync android
+          node-version: '20'
 
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
+          distribution: 'zulu'
           java-version: '21'
-          distribution: 'temurin'
-          cache: gradle
 
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
+      - name: Install dependencies
+        run: npm ci || npm install
 
-      - name: Clear corrupted Gradle Jar cache
-        run: rm -rf ~/.gradle/caches/jars-9/ || true
+      - name: Build web app
+        run: npm run build
+
+      - name: Inject google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          else
+            echo "Warning: GOOGLE_SERVICES_JSON secret is not set!"
+          fi
+
+      - name: Capacitor Sync
+        run: npx cap sync android
 
       - name: Build APK
-        working-directory: android
-        run: ./gradlew assembleDebug
+        working-directory: ./android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
